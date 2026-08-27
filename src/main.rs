@@ -34,6 +34,25 @@ async fn main() {
         .await
         .expect("connect sqlite");
     sqlx::migrate!().run(&db).await.expect("migrate sqlite");
+    sqlx::query("DELETE FROM rooms WHERE updated_at < unixepoch() - 7776000")
+        .execute(&db)
+        .await
+        .expect("expire inactive rooms");
+    let cleanup_db = db.clone();
+    tokio::spawn(async move {
+        let day = tokio::time::Duration::from_secs(86_400);
+        let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + day, day);
+        loop {
+            interval.tick().await;
+            if let Err(error) =
+                sqlx::query("DELETE FROM rooms WHERE updated_at < unixepoch() - 7776000")
+                    .execute(&cleanup_db)
+                    .await
+            {
+                tracing::warn!(%error, "inactive room cleanup failed");
+            }
+        }
+    });
     let state = api::AppState {
         db,
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),

@@ -373,12 +373,51 @@ mod tests {
     #[test]
     fn dots_box_keeps_turn() {
         let mut s = GameState::new(&GameKind::Dots, 2);
-        for (axis, index) in [("h", 0), ("v", 0), ("v", 1)] {
+        for (axis, index) in [("h", 0), ("v", 0), ("h", 3), ("v", 1)] {
             s.act(
                 s.current(),
                 &serde_json::json!({"type":"line","axis":axis,"index":index}),
             )
             .unwrap();
         }
+        let GameState::Dots(dots) = s else {
+            unreachable!()
+        };
+        assert_eq!(dots.scores, vec![0, 1]);
+        assert_eq!(dots.turn, 1);
+    }
+
+    #[test]
+    fn race_requires_six_and_keeps_the_bonus_turn() {
+        let mut race = RaceState {
+            turn: 0,
+            pawns: vec![vec![-1; 2]; 2],
+            die: Some(6),
+            winner: None,
+            message: String::new(),
+        };
+        race.act(0, &serde_json::json!({"type":"move","pawn":0}))
+            .unwrap();
+        assert_eq!(race.pawns[0][0], 0);
+        assert_eq!(race.turn, 0);
+    }
+
+    #[test]
+    fn dice_score_ends_the_turn_and_clears_the_tray() {
+        let mut dice = DiceState {
+            turn: 0,
+            dice: [3, 3, 3, 2, 2],
+            held: [true; 5],
+            rolls_left: 1,
+            scores: vec![vec![None; 10]; 2],
+            round: 0,
+            winner: None,
+            message: String::new(),
+        };
+        dice.act(0, &serde_json::json!({"type":"score","category":8}))
+            .unwrap();
+        assert_eq!(dice.scores[0][8], Some(25));
+        assert_eq!(dice.turn, 1);
+        assert_eq!(dice.dice, [0; 5]);
     }
 }
