@@ -129,7 +129,7 @@ function landing() {
 function legal(kind: "privacy" | "terms") {
   clearInterval(poll);
   poll = undefined;
-  const privacy = `<p>Last updated 27 August 2026</p><h2>The short version</h2><p>Kitchen Table has no accounts, ads, analytics, tracking pixels, or third-party scripts. We store only what is needed to keep a room playable.</p><h2>What is stored</h2><p>The service stores a room code, player nicknames, game moves and a random private seat token. Your browser keeps that token in local storage so it can find your seat again. Do not use a real full name as your nickname.</p><h2>Sharing and retention</h2><p>Room data is not sold or shared. Anyone with a room code can view its board and ask to join while the lobby is open. Room data may be removed after inactivity. To request early deletion, contact the operator listed in the deployment’s site notice.</p><h2>Children</h2><p>The game does not ask for age, contact details, chat, or location. A parent or guardian should share room links privately.</p>`;
+  const privacy = `<p>Last updated 27 August 2026</p><h2>The short version</h2><p>Kitchen Table has no accounts, ads, analytics, tracking pixels, or third-party scripts. We store only what is needed to keep a room playable.</p><h2>What is stored</h2><p>The service stores a room code, player nicknames, game moves and a random private seat token. Your browser keeps that token in local storage so it can find your seat again. Do not use a real full name as your nickname.</p><h2>Sharing and retention</h2><p>Room data is not sold or shared. Anyone with a room code can view its board and ask to join while the lobby is open. Rooms are removed after 90 days without a game action. To request early deletion, contact the operator listed in the deployment’s site notice.</p><h2>Children</h2><p>The game does not ask for age, contact details, chat, or location. A parent or guardian should share room links privately.</p>`;
   const terms = `<p>Last updated 27 August 2026</p><h2>Use of the game</h2><p>Kitchen Table is a free family game service provided as-is. Use it for lawful, private play. Do not try to disrupt the service, automate excessive requests, or guess other families’ room codes.</p><h2>Your room</h2><p>Room links and seat data are your responsibility. A game result is for fun and has no monetary value. There is no gambling, matchmaking, chat, or prize.</p><h2>Availability</h2><p>We may change or discontinue the service and may remove inactive rooms. We cannot promise uninterrupted availability or preservation of a room forever.</p><h2>Public-domain rules</h2><p>Lantern Race, Make a Square, and High Five use original presentation around public-domain game mechanics. Site artwork and code remain covered by their stated licenses.</p>`;
   app.innerHTML = shell(
     `<article class="legal"><a href="/" data-link class="back">← Back to the table</a><h1>${kind === "privacy" ? "Privacy at the table" : "Terms of play"}</h1>${kind === "privacy" ? privacy : terms}</article>`,
@@ -227,11 +227,11 @@ function bindRoom(r: Room) {
           };
         if (action === "hold")
           payload = { type: "hold", index: Number(b.dataset.index) };
-      if (action === "score")
-        payload = { type: "score", category: Number(b.dataset.category) };
-      try {
-        renderRoom(await act(r.code, payload));
-        document.querySelector<HTMLElement>(".turn-card")?.focus();
+        if (action === "score")
+          payload = { type: "score", category: Number(b.dataset.category) };
+        try {
+          renderRoom(await act(r.code, payload));
+          document.querySelector<HTMLElement>(".turn-card")?.focus();
         } catch (ex) {
           toast((ex as Error).message, true);
         } finally {
