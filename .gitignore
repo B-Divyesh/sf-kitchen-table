@@ -1,6 +1,10 @@
 node_modules/
-dist/
-.env
+target/
+frontend/dist/
+kitchen-table.db*
+runtime-check.db*
 *.log
+.env
 graphify-out/
 .DS_Store
+dist/

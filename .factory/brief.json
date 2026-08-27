@@ -1,0 +1,12 @@
+{
+  "slug": "kitchen-table",
+  "title": "Kitchen Table: ad-free, account-free classic family board games across phones in the same room or async",
+  "user": "Couples and parents who want simple games with a partner or kids on separate phones without ads, IAP, accounts, or tracking.",
+  "smallest_useful_product": "A room-code lobby with three public-domain games: a Parcheesi/Ludo-style race, dots-and-boxes, and a simple dice-score game. Realtime in the room and resumable asynchronously by link.",
+  "constraints": "Public-domain rules and original presentation only; authoritative server; nicknames only; no matchmaking, chat, ranking, ads, tracking, or payment.",
+  "success_measure": "At least half of created rooms complete a game, at least 30% return within seven days, and zero ad impressions by design.",
+  "artifact_class": "web-with-backend",
+  "monetization": "free",
+  "territory": "games-creative",
+  "state": "BUILT"
+}
