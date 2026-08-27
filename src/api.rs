@@ -138,6 +138,12 @@ fn internal<E: std::fmt::Display>(e: E) -> ApiError {
 pub async fn health(State(s): State<AppState>) -> Json<Value> {
     Json(json!({"status":"ok","build_sha":s.build_sha}))
 }
+pub async fn not_found() -> ApiError {
+    ApiError(
+        StatusCode::NOT_FOUND,
+        "That API route does not exist.".into(),
+    )
+}
 pub async fn create(State(s): State<AppState>, Json(b): Json<CreateBody>) -> ApiResult<Value> {
     let nickname = clean_name(&b.nickname)?;
     let (_, max) = b.game.players();
