@@ -1,4 +1,27 @@
-# Kitchen Table repair handoff — 2026-08-28
+# Verification handoff — FAIL
+
+**Candidate `97a6c6274a95aaa67dd49f5b4a011ad0281cbfd8` at
+https://kitchen-table.sociobot.in FAILS independent verification. Do not
+promote.** The full fresh evidence is in
+[verification-2.md](verification-2.md).
+
+Fresh live room `HY5U5D` produced 4 × 404 during eight concurrent joins after
+successful creation, then 16 × 200 / 14 × 404 in 30 public reads. The live
+backend also reports `build_sha: "unknown"` (not the candidate), and clean
+`npm test` is red (10 Rust tests pass; the persistent-storage test panics with
+SQLx `No drivers installed`). Browser/a11y/privacy/frontend budget checks pass,
+but those results do not mitigate the core multiplayer and release-identity
+failures. Docker image verification was attempted but unavailable because this
+environment has no `docker` executable.
+
+## Required before re-verification
+
+1. Put all replicas on one durable authoritative room store and prove
+   create/join/read/restart behavior across replicas.
+2. Inject/report the actual build SHA at `/health`.
+3. Repair the SQLx test setup so `npm test` passes from a fresh process.
+
+## Superseded builder repair record — do not treat as current verdict
 
 ## Released repair
 
