@@ -34,7 +34,10 @@ async fn main() {
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite://kitchen-table.db?mode=rwc".into());
     let db = SqlitePoolOptions::new()
-        .max_connections(8)
+        // The production database lives on a persistent Azure Files mount.
+        // This deployment is intentionally capped at one replica; keeping one
+        // connection also makes SQLite's single-writer contract explicit.
+        .max_connections(1)
         .connect(&database_url)
         .await
         .expect("connect sqlite");
