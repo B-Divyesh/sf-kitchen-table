@@ -1,5 +1,33 @@
 # Kitchen Table v1 handoff
 
+## Repair delivery product-QA sign-off (2026-08-28)
+
+- **Recovered candidate:** `830138fc4c0e5ece8448a31b1e989b8f4625a9ce`.
+  Repair commit: `5831bac397be276112182351693eaa30f567d42b`.
+- **Focused repair:** the production image now bakes the immutable candidate
+  SHA into `BUILD_SHA`; the `/health` handler has a regression test for the
+  configured build identity. No game flow, visual design, storage model, or
+  deployment class changed.
+- **Clean local QA:** `npm ci`, `cargo clean`, `npm test`, `npm run build`,
+  and `cargo build --release` all passed. `npm test` passed **7 Rust tests**
+  and **3 frontend tests**. The production Vite output is 18.49 KB JS,
+  16.46 KB CSS, and 71.35 KB of local fonts (raw asset sizes).
+- **Container delivery:** ACR run `ch7t` built
+  `sociobotregistry.azurecr.io/sf-kitchen-table:5831bac397be` successfully in
+  5m04s. The fixed worker path registered the hostname before ordering the
+  managed certificate; the certificate reached `Succeeded` and the custom
+  hostname is SNI-bound.
+- **Public production QA:** on 2026-08-28, `GET
+  https://kitchen-table.sociobot.in/` returned **HTTP 200** and `GET
+  https://kitchen-table.sociobot.in/health` returned **HTTP 200** with
+  `{"status":"ok","build_sha":"830138fc4c0e5ece8448a31b1e989b8f4625a9ce"}`.
+- **Browser and accessibility QA:** factory `verify-url.sh` passed against the
+  public URL in 683 ms with zero console/page errors, title present,
+  `lang="en"`, exactly one `h1`, a `main` landmark, zero images missing alt
+  text, and zero unlabeled buttons. Public mobile Axe coverage passed on home
+  plus Lantern Race, Make a Square, and High Five: **4 screens, zero
+  serious/critical violations**. Updated evidence is in `.factory/evidence/`.
+
 ## What shipped
 
 - A finished account-free room flow: create, share a six-character code/link,
@@ -80,6 +108,7 @@ driver is `.factory/a11y-check.mjs` (it uses the worker's Playwright install).
 - SQLite and the in-process write lock are intended for the shipped
   single-container deployment. Horizontal replication would require PostgreSQL
   or database-backed optimistic locking.
-- The factory still needs to run its deployment image check and configure
-  persistent `/data` storage. No DNS, infrastructure, billing, or payment work
-  was performed.
+- The fixed Container App worker path does not currently attach a persistent
+  `/data` volume. Room state is durable for a running replica but requires
+  factory storage configuration to survive an app revision or restart. No
+  billing or payment work was performed.
