@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://kitchen-table.sociobot.in/sitemap.xml

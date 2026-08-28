@@ -1,18 +1,19 @@
 mod api;
 mod game;
 use axum::{
-    extract::{DefaultBodyLimit, Request},
+    extract::{DefaultBodyLimit, Extension, Request},
     routing::{any, get, get_service, post},
     Router,
 };
 use axum::{
-    http::{header::CACHE_CONTROL, HeaderName, HeaderValue},
+    http::{header::{CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER}, HeaderName, HeaderValue, StatusCode},
     middleware::{self, Next},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use sqlx::any::AnyPoolOptions;
 use std::path::Path as FsPath;
 use std::sync::Arc;
+use std::time::Instant;
 use std::{net::SocketAddr, str::FromStr};
 use tokio::sync::Mutex;
 use tower_http::{
@@ -32,7 +33,7 @@ async fn main() {
         )
         .init();
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite://kitchen-table.db?mode=rwc".into());
+        .unwrap_or_else(|_| "sqlite:///data/kitchen-table.db?mode=rwc".into());
     api::install_db_drivers();
     let db = AnyPoolOptions::new()
         .max_connections(8)
@@ -65,14 +66,15 @@ async fn main() {
         blob: api::blob_store_from_env(),
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
         write_lock: Arc::new(Mutex::new(())),
+        rate_limits: api::rate_limits(),
     };
-    let app = app_router(state, "frontend/dist");
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
     let addr = SocketAddr::from_str(&format!("0.0.0.0:{port}")).unwrap();
-    tracing::info!(%addr,"Kitchen Table listening");
+    tracing::info!(%addr, database = if std::env::var_os("DATABASE_URL").is_some() {"supplied"} else {"generated default"}, blob = if state.blob.is_some() {"supplied"} else {"local default"}, "Kitchen Table listening");
+    let app = app_router(state, "frontend/dist");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown())
@@ -94,11 +96,22 @@ fn app_router(state: api::AppState, static_dir: impl AsRef<FsPath>) -> Router {
         .route("/api/rooms/{code}/action", post(api::action))
         .route("/api/{*path}", any(api::not_found))
         .route("/", spa.clone())
+        .route("/demo", spa.clone())
         .route("/room/{code}", spa.clone())
         .route("/privacy", spa.clone())
         .route("/terms", spa)
-        .fallback_service(ServeDir::new(static_dir))
-        .with_state(state)
+        .nest_service("/assets", ServeDir::new(static_dir.join("assets")))
+        .route_service("/robots.txt", ServeFile::new(static_dir.join("robots.txt")))
+        .route_service("/sitemap.xml", ServeFile::new(static_dir.join("sitemap.xml")))
+        .route_service("/sw.js", ServeFile::new(static_dir.join("sw.js")))
+        .route_service("/manifest.webmanifest", ServeFile::new(static_dir.join("manifest.webmanifest")))
+        .route_service("/icon.svg", ServeFile::new(static_dir.join("icon.svg")))
+        .route_service("/apple-touch-icon.png", ServeFile::new(static_dir.join("apple-touch-icon.png")))
+        .route_service("/social-card.jpg", ServeFile::new(static_dir.join("social-card.jpg")))
+        .fallback(any(not_found_page))
+        .with_state(state.clone())
+        .layer(middleware::from_fn_with_state(state, rate_limit))
+        .layer(Extension(static_dir))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(SetResponseHeaderLayer::if_not_present(
             HeaderName::from_static("x-content-type-options"),
@@ -115,6 +128,57 @@ fn app_router(state: api::AppState, static_dir: impl AsRef<FsPath>) -> Router {
         .layer(middleware::from_fn(cache_policy))
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http())
+}
+
+/// A small per-client window keeps game endpoints useful under accidental or
+/// abusive polling. The ingress supplies the first X-Forwarded-For hop.
+async fn rate_limit(
+    axum::extract::State(state): axum::extract::State<api::AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if req.uri().path() == "/health" {
+        return next.run(req).await;
+    }
+    let client = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("local")
+        .trim()
+        .to_owned();
+    let now = Instant::now();
+    let mut limits = state.rate_limits.lock().await;
+    let entry = limits.entry(client).or_insert((now, 0));
+    if now.duration_since(entry.0).as_secs_f32() >= 1.0 {
+        *entry = (now, 0);
+    }
+    entry.1 += 1;
+    if entry.1 > 40 {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(RETRY_AFTER, HeaderValue::from_static("1"))],
+            "Slow down and try again.",
+        )
+            .into_response();
+    }
+    drop(limits);
+    next.run(req).await
+}
+
+/// Browser routes that are not part of the product still receive the designed
+/// SPA recovery screen, while preserving HTTP 404 for links and crawlers.
+async fn not_found_page(Extension(static_dir): Extension<std::path::PathBuf>) -> Response {
+    match tokio::fs::read(static_dir.join("index.html")).await {
+        Ok(html) => (
+            StatusCode::NOT_FOUND,
+            [(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))],
+            html,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn cache_policy(req: Request, next: Next) -> Response {
@@ -174,6 +238,7 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: api::rate_limits(),
         }
     }
 
@@ -259,6 +324,39 @@ mod tests {
             serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["error"],
             "The request body was not valid. Check the game and try again."
         );
+        let _ = fs::remove_dir_all(assets);
+    }
+
+    #[tokio::test]
+    async fn endpoints_rate_limit_by_forwarded_client_and_include_retry_after() {
+        let assets = fixture_dir();
+        let app = app_router(state("sqlite::memory:").await, &assets);
+        for _ in 0..40 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/privacy")
+                        .header("x-forwarded-for", "203.0.113.9, 10.0.0.1")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_ne!(response.status(), axum::http::StatusCode::TOO_MANY_REQUESTS);
+        }
+        let limited = app
+            .oneshot(
+                Request::builder()
+                    .uri("/privacy")
+                    .header("x-forwarded-for", "203.0.113.9, 10.0.0.1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(limited.status(), axum::http::StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(limited.headers()[RETRY_AFTER], "1");
         let _ = fs::remove_dir_all(assets);
     }
 }

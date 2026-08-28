@@ -84,3 +84,6 @@ Prompt sheet:
 Generated with the factory image deployment (Azure OpenAI image generation) on
 2026-08-27. Original for this product; no third-party or copyrighted source
 material was supplied. Generated imagery is disclosed in the site footer.
+
+The 1200 × 630 social card and 180 px Apple touch icon are crops derived from
+that same original hero asset on 2026-08-28; no additional source was used.

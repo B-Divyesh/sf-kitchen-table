@@ -1,64 +1,53 @@
 # Kitchen Table
 
-Kitchen Table is an ad-free, account-free place for couples and families to
-play three familiar public-domain games across their phones. Start a room,
-share its six-character link, and play live or leave the board waiting for the
-next turn.
+Play family games on separate phones with no account or ads. Make a room, share
+its link, and take turns from the same board.
 
-- **Lantern Race** — a compact Parcheesi/Ludo-style pawn race for 2–4 players.
-- **Make a Square** — dots and boxes for two players.
-- **High Five** — a five-dice score-sheet game for two players.
+Choose from three family games:
 
-There is no matchmaking, chat, advertising, analytics, or account profile.
-Nicknames, room state, and random seat tokens are stored privately. In
-production, Azure Blob Storage is the authoritative room store and every write
-uses an ETag compare-and-swap so a room keeps working across replicas and
-restarts. SQLite is a local development cache. Seat tokens stay in the
-browser's local storage.
+- **Lantern Race** — race two pawns around a shared path with 2–4 players.
+- **Make a Square** — add lines and claim completed squares with two players.
+- **High Five** — roll five dice and fill score rows with two players.
+
+Try the isolated sample at /demo. It starts a Make a Square game with Alex and
+Ravi. Demo state stays in a demo: browser key and is never copied to a real
+room. See .factory/demo.md.
+
+Kitchen Table has no account, ads, matchmaking, chat, payments, or analytics.
+Room creation explains the stored fields before it sends a request. See /privacy
+and /terms.
 
 ## Run locally
 
 Requirements: Node 22+, npm, and Rust 1.85+.
 
-```sh
-npm ci
-npm run build
-DATABASE_URL='sqlite://kitchen-table.db?mode=rwc' cargo run
-```
+    npm ci
+    npm run build
+    cargo run
 
-Open `http://localhost:8080`. For frontend development, run `npm run dev` in a
-second terminal; Vite proxies API requests to port 8080.
+Open http://localhost:8080. For frontend development, run npm run dev in
+another terminal; Vite proxies API requests to port 8080.
 
 ## Test and build
 
-```sh
-npm test
-npm run build
-cargo build --release
-```
+    npm test
+    npm run build
+    cargo build --release
 
-The web build lands in `frontend/dist/`. The production container serves that
-directory and the API together on `PORT` (default `8080`).
+npm test runs Rust unit/integration tests, Vitest scoring tests, a production
+frontend build, and the browser claim suite. The claim registry is
+.factory/claims.json; each command there can also run on its own.
 
-```sh
-docker build -t kitchen-table .
-docker run --rm -p 8080:8080 -v kitchen-table-data:/data kitchen-table
-```
+The container serves the frontend and API together on PORT (default 8080). With
+no configuration, SQLite is stored under /data.
 
-`PORT` defaults to `8080`; `DATABASE_URL`, `BUILD_SHA`, and `RUST_LOG` are
-optional overrides. The production image uses the Container App's managed
-identity (no storage key or browser credential) and reports its injected build
-SHA at `/health`. Health checks are available at `/health`.
+    docker build --build-arg BUILD_SHA=local -t kitchen-table .
+    docker run --rm -p 8080:8080 -v kitchen-table-data:/data kitchen-table
 
-## Privacy and accessibility
-
-The service loads no third-party scripts, fonts, or trackers. Fonts and the
-original generated artwork are shipped locally. `/privacy` and `/terms`
-describe the small amount of room data retained. The interface has semantic
-controls, keyboard focus, live turn announcements, reduced-motion support, and
-a mobile-first game layout.
+/health returns the build SHA. The server rate-limits every route other than
+that health check.
 
 ## License
 
-Code is released under the MIT License. Generated artwork is original to this
-product; see `.factory/design.md` for provenance.
+Code is released under the MIT License. The original generated artwork and its
+provenance are documented in .factory/design.md.

@@ -1,0 +1,9 @@
+[
+  {"id":"demo-isolated","claim":"Demo — sample data, nothing is saved","where":"/demo banner, README","test":"npx playwright test --grep @claim:demo-isolated","sandbox":"Fresh browser context loads /demo; assert the seeded board, demo: key, no kt: key, and no room API request."},
+  {"id":"demo-reset","claim":"Reset demo returns the sample game to its starting state","where":"/demo banner","test":"npx playwright test --grep @claim:demo-reset","sandbox":"Fresh /demo; draw one sample line; reset; assert original open-line count."},
+  {"id":"demo-offline","claim":"The open sample board stays usable offline","where":".factory/demo.md","test":"npx playwright test --grep @claim:demo-offline","sandbox":"Fresh /demo switches offline, draws an open sample line, and asserts the turn changes without a request."},
+  {"id":"no-account","claim":"No account","where":"landing hero, landing steps, Privacy, README","test":"npx playwright test --grep @claim:no-account","sandbox":"Fresh /demo enters the sample without email, password, login, or account fields."},
+  {"id":"no-ads","claim":"No ads","where":"landing hero, landing limits, Privacy, README","test":"npx playwright test --grep @claim:no-ads","sandbox":"Fresh /demo records all requests and asserts same-origin only with no ad surface."},
+  {"id":"three-games","claim":"Choose from three family games","where":"landing game section, README","test":"npx playwright test --grep @claim:three-games","sandbox":"Fresh landing lists exactly the three named playable game choices."},
+  {"id":"storage-disclosure","claim":"We store your nickname, game moves, room code, and a random seat token","where":"landing room form, Privacy","test":"npx playwright test --grep @claim:storage-disclosure","sandbox":"Fresh landing selects a game and asserts the room-creation disclosure is visible before a write."}
+]

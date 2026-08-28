@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{AnyPool, Row};
 use std::{
+    collections::HashMap,
     sync::{Arc, Once},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
 
@@ -22,6 +23,11 @@ pub struct AppState {
     pub blob: Option<BlobStore>,
     pub build_sha: String,
     pub write_lock: Arc<Mutex<()>>,
+    pub rate_limits: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
+}
+
+pub fn rate_limits() -> Arc<Mutex<HashMap<String, (Instant, u32)>>> {
+    Arc::new(Mutex::new(HashMap::new()))
 }
 
 /// A private Azure Blob copy makes room state survive Container App restarts.
@@ -553,6 +559,7 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
         }
     }
 
@@ -664,6 +671,7 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
         };
         let room = create(
             State(first_state),
@@ -688,6 +696,7 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
         };
         let loaded = get_room(
             State(replacement_state),
@@ -728,12 +737,14 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
         };
         let second = AppState {
             db: second_db.clone(),
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
         };
 
         let created = create(
