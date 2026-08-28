@@ -20,6 +20,9 @@ test("@claim:demo-isolated opens a seeded game without room API writes", async (
   expect(keys.some(key => key.startsWith("kt:"))).toBeFalsy();
   await page.goto("/?demo=1");
   await expect(page.getByText("Demo — sample data, nothing is saved")).toBeVisible();
+  await page.getByRole("button", { name: "Create sample room link" }).click();
+  await page.waitForURL("**/demo/*");
+  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("demo:")).length)).toBeGreaterThan(0);
   await page.getByRole("link", { name: "Start for real" }).click();
   await expect(page).toHaveURL(/\/$/);
   expect(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("demo:")))).toBeFalsy();
@@ -42,6 +45,12 @@ test("@claim:demo-reset clears changed sample state", async ({ page }) => {
   await page.goto("/demo");
   const initial = await page.locator("[data-demo-line]").count();
   await page.locator("[data-demo-line]").first().click();
+  await expect(page.locator("[data-demo-line]")).toHaveCount(initial - 1);
+  await page.getByRole("button", { name: "Reset demo" }).click();
+  await expect(page.locator("[data-demo-line]")).toHaveCount(initial);
+  await page.getByRole("button", { name: "Create sample room link" }).click();
+  await page.waitForURL("**/demo/*");
+  await page.locator("[data-demo-line]:not([disabled])").first().click();
   await expect(page.locator("[data-demo-line]")).toHaveCount(initial - 1);
   await page.getByRole("button", { name: "Reset demo" }).click();
   await expect(page.locator("[data-demo-line]")).toHaveCount(initial);

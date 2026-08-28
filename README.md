@@ -12,7 +12,7 @@ Choose from three family games:
 Try the isolated sample at `/demo` or `/?demo=1`. It opens a Make a Square game
 with Alex and Ravi, claimed squares, and an open move. Create a sample link to
 test two phones without touching a real room. Demo state uses only `demo:`
-browser keys and an ephemeral in-memory workspace. See `.factory/demo.md`.
+browser keys and an isolated sample workspace. See `.factory/demo.md`.
 
 Kitchen Table has no account, ads, matchmaking, chat, payments, or analytics.
 Room creation explains the stored fields before it sends a request. See /privacy
