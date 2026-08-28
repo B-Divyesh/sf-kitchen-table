@@ -1,0 +1,89 @@
+{
+  "desktop-1440x900": {
+    "boxes": {
+      "Try it with sample data": {
+        "x": 160,
+        "y": 538.359375,
+        "width": 220,
+        "height": 49.5
+      },
+      "Opens a two-player game already in progress.": {
+        "x": 392,
+        "y": 541.5,
+        "width": 220,
+        "height": 43.21875
+      },
+      "No ads": {
+        "x": 160,
+        "y": 607.859375,
+        "width": 63.0625,
+        "height": 21.609375
+      },
+      "No account": {
+        "x": 249.0625,
+        "y": 607.859375,
+        "width": 91.0625,
+        "height": 21.609375
+      },
+      "Return to the same room later": {
+        "x": 366.125,
+        "y": 607.859375,
+        "width": 211.0625,
+        "height": 21.609375
+      }
+    },
+    "errors": []
+  },
+  "mobile-390x844": {
+    "boxes": {
+      "Try it with sample data": {
+        "x": 20,
+        "y": 508.4375,
+        "width": 350,
+        "height": 48
+      },
+      "Opens a two-player game already in progress.": {
+        "x": 20,
+        "y": 568.4375,
+        "width": 150,
+        "height": 64.828125
+      },
+      "No ads": {
+        "x": 20,
+        "y": 647.265625,
+        "width": 63.0625,
+        "height": 21.609375
+      },
+      "No account": {
+        "x": 99.0625,
+        "y": 647.265625,
+        "width": 91.0625,
+        "height": 21.609375
+      },
+      "Return to the same room later": {
+        "x": 20,
+        "y": 676.875,
+        "width": 211.0625,
+        "height": 21.609375
+      }
+    },
+    "errors": []
+  },
+  "backFocus": true,
+  "demo": {
+    "guestHref": "/demo/LVSQJ4?join=1",
+    "before": 6,
+    "after": 7,
+    "keys": [
+      "demo:kitchen-table:make-a-square",
+      "demo:kitchen-table:seat:LVSQJ4",
+      "demo:kitchen-table:seat:LVSQJ4"
+    ],
+    "productionRequests": []
+  },
+  "notFound": {
+    "status": 404,
+    "title": "Page not found — Kitchen Table",
+    "h1": "This table is not here"
+  }
+}
