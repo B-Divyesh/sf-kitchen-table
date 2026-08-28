@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
-    "test": "cargo test && vitest run && npm run build && playwright test",
-    "test:claims": "playwright test tests/claims.spec.ts"
+    "test": "cargo test && vitest run && npm run build && playwright test && npm run test:provenance",
+    "test:claims": "playwright test tests/claims.spec.ts",
+    "test:provenance": "node tests/provenance.test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.8",

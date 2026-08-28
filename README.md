@@ -1,13 +1,13 @@
 # Kitchen Table
 
 Play family games on separate phones with no account or ads. Make a room, share
-its link, and take turns from the same board.
+its link, and continue from the same board.
 
 Choose from three family games:
 
-- **Lantern Race** — race two pawns around a shared path with 2–4 players.
-- **Make a Square** — add lines and claim completed squares with two players.
-- **High Five** — roll five dice and fill score rows with two players.
+- **Lantern Race**
+- **Make a Square**
+- **High Five**
 
 Try the isolated sample at /demo. It starts a Make a Square game with Alex and
 Ravi. Demo state stays in a demo: browser key and is never copied to a real
@@ -38,13 +38,13 @@ npm test runs Rust unit/integration tests, Vitest scoring tests, a production
 frontend build, and the browser claim suite. The claim registry is
 .factory/claims.json; each command there can also run on its own.
 
-The container serves the frontend and API together on PORT (default 8080). With
-no configuration, SQLite is stored under /data.
+The container serves the frontend and API together on PORT (default 8080). It
+uses `/data` when no database location is supplied.
 
     docker build --build-arg BUILD_SHA=local -t kitchen-table .
     docker run --rm -p 8080:8080 -v kitchen-table-data:/data kitchen-table
 
-/health returns the build SHA. The server rate-limits every route other than
+`/health` returns the build SHA. The server rate-limits every route other than
 that health check.
 
 ## License

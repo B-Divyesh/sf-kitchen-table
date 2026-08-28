@@ -43,20 +43,20 @@ export type Room = {
 export const gameInfo = {
   race: {
     name: "Lantern Race",
-    eyebrow: "2–4 players · 15 min",
+    eyebrow: "A pawn race",
     description:
-      "Bring two pawns around the shared path. Roll a six to enter; send rivals back to the porch.",
+      "Bring two pawns around a shared path.",
   },
   dots: {
     name: "Make a Square",
-    eyebrow: "2 players · 10 min",
+    eyebrow: "A line game",
     description:
-      "Add one line at a time. Close a square to claim it—and take another turn.",
+      "Draw lines and claim the squares they close.",
   },
   dice: {
     name: "High Five",
-    eyebrow: "2 players · 15 min",
+    eyebrow: "A dice score sheet",
     description:
-      "Roll five dice up to three times, hold your favourites, then choose one score row.",
+      "Roll five dice, hold some, then choose a score row.",
   },
 } as const;

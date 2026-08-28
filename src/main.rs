@@ -6,7 +6,10 @@ use axum::{
     Router,
 };
 use axum::{
-    http::{header::{CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER}, HeaderName, HeaderValue, StatusCode},
+    http::{
+        header::{CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER},
+        HeaderName, HeaderValue, StatusCode,
+    },
     middleware::{self, Next},
     response::{IntoResponse, Response},
 };
@@ -171,12 +174,27 @@ async fn rate_limit(
 /// SPA recovery screen, while preserving HTTP 404 for links and crawlers.
 async fn not_found_page(Extension(static_dir): Extension<std::path::PathBuf>) -> Response {
     match tokio::fs::read(static_dir.join("index.html")).await {
-        Ok(html) => (
-            StatusCode::NOT_FOUND,
-            [(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))],
-            html,
-        )
-            .into_response(),
+        Ok(html) => {
+            // The SPA turns this shell into the illustrated recovery page, and
+            // the response itself is also useful to crawlers and people whose
+            // script has not loaded yet.
+            let mut html = String::from_utf8_lossy(&html).into_owned();
+            if let Some(start) = html.find("<title>") {
+                if let Some(end) = html[start..].find("</title>") {
+                    let end = start + end + "</title>".len();
+                    html.replace_range(start..end, "<title>Page not found — Kitchen Table</title>");
+                }
+            }
+            (
+                StatusCode::NOT_FOUND,
+                [(
+                    CONTENT_TYPE,
+                    HeaderValue::from_static("text/html; charset=utf-8"),
+                )],
+                html,
+            )
+                .into_response()
+        }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -279,6 +297,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(missing.status(), axum::http::StatusCode::NOT_FOUND);
+        let missing_body = missing.into_body().collect().await.unwrap().to_bytes();
+        assert!(std::str::from_utf8(&missing_body)
+            .unwrap()
+            .contains("Page not found — Kitchen Table"));
         let _ = fs::remove_dir_all(assets);
     }
 
