@@ -71,6 +71,29 @@ The shipped Container App has only `PORT` configured; its image contains
 non-secret storage identifiers and automatically enables the private Blob
 store when Container Apps injects its identity endpoint.
 
+## Live deployment evidence
+
+The functional deployment verification was run against image
+`sociobotregistry.azurecr.io/sf-kitchen-table:a470bf622a98`, built from source
+commit `a470bf622a989d9eda93cc4a64ff02897c055b0f` with that exact `BUILD_SHA`.
+
+- `GET /health` returned
+  `{"build_sha":"a470bf622a989d9eda93cc4a64ff02897c055b0f","status":"ok"}`.
+- Fresh live Race room `SAKUSN`: eight concurrent joins returned **3 × 200**
+  and **5 × 400**, with **0 × 404**. Thirty concurrent public reads then
+  returned **30 × 200**, four players, and no seat token. After restarting
+  revision `sf-kitchen-table--0000010`, another **60 × 200** public reads had
+  the same four-player state and no token leakage.
+- Known browser routes and response policy are intact: `/privacy` returns 200,
+  hashed JS is immutable, and invalid game JSON returns the documented 400.
+- Live Playwright desktop/390 px checks found one `h1`, one `main`, a
+  keyboard-reachable Skip link, no horizontal overflow or console errors,
+  44×44 Privacy/Terms targets, and same-origin-only requests. Axe scanned the
+  home plus active Race, Dots, and Dice games: **4 screens, 0
+  serious/critical violations**.
+- The active worker controlled a warmed HTTPS page after reload; a deliberate
+  offline reload retained the page title and one `main` landmark.
+
 ## Known limitations
 
 - Turns use lightweight polling rather than push notifications.
