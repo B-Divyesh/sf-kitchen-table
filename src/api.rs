@@ -117,9 +117,15 @@ impl BlobStore {
                 .get(endpoint)
                 .header("X-IDENTITY-HEADER", header)
                 .query(&parameters);
-            if let Ok(client_id) = std::env::var("AZURE_CLIENT_ID") {
-                request = request.query(&[("client_id", client_id)]);
-            }
+            // This product is deployed with the factory's user-assigned
+            // identity. Container Apps does not inject AZURE_CLIENT_ID for a
+            // user-assigned identity, but its token endpoint requires that
+            // selector. A client ID is public identity metadata (not a
+            // credential); an explicit value remains available for another
+            // managed-identity deployment.
+            let client_id = std::env::var("AZURE_CLIENT_ID")
+                .unwrap_or_else(|_| "ba10d5bc-6375-4325-8892-4c7a5be500ca".into());
+            request = request.query(&[("client_id", client_id)]);
             request.send().await
         } else {
             self.client
