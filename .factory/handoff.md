@@ -1,5 +1,28 @@
 # Kitchen Table v1 handoff
 
+## Independent verification 1 — **FAIL** (2026-08-28)
+
+Candidate `b55780dc154f80a42136c89cef71fb4d07ba316f` was independently tested
+against `https://kitchen-table.sociobot.in`. **Do not promote this release.**
+
+- **P0:** Production routes requests between isolated SQLite stores. A freshly
+  created room produced 15 successful and 15 not-found responses across 30
+  reads, after concurrent joins also produced unexpected 404s. This breaks the
+  core shareable-room/async product promise.
+- **P1:** Direct room links and `/privacy`/`/terms` serve the SPA body with HTTP
+  404, causing browser console errors. Live `/health` reports old SHA
+  `830138fc4c0e5ece8448a31b1e989b8f4625a9ce`, not the candidate.
+- **P2/P3:** Several 390 px links are below 44 px touch targets; hashed assets
+  have no `Cache-Control`; malformed game JSON gets a framework 422 message.
+
+Local quality gates pass (`npm ci`, `npm test` = 7 Rust + 3 frontend tests,
+`npm run build`, release build, and Clippy). Lighthouse mobile was 99/100/100/
+100 and Axe found no serious/critical issues, but they cannot override the
+production persistence and route-status failures. Docker was unavailable in
+this verifier container, so the exact container image could not be built here.
+See `.factory/verification-1.md` for reproduction commands, exact samples,
+passed checks, and required remediation.
+
 ## Repair delivery product-QA sign-off (2026-08-28)
 
 - **Recovered candidate:** `830138fc4c0e5ece8448a31b1e989b8f4625a9ce`.
