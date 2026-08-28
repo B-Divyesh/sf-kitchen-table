@@ -70,6 +70,7 @@ async fn main() {
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
         write_lock: Arc::new(Mutex::new(())),
         rate_limits: api::rate_limits(),
+        demo_rooms: api::demo_rooms(),
     };
     let port = std::env::var("PORT")
         .ok()
@@ -97,9 +98,15 @@ fn app_router(state: api::AppState, static_dir: impl AsRef<FsPath>) -> Router {
         .route("/api/rooms/{code}/join", post(api::join))
         .route("/api/rooms/{code}/start", post(api::start))
         .route("/api/rooms/{code}/action", post(api::action))
+        .route("/api/demo/rooms", post(api::create_demo))
+        .route("/api/demo/rooms/{id}", get(api::get_demo))
+        .route("/api/demo/rooms/{id}/join", post(api::join_demo))
+        .route("/api/demo/rooms/{id}/action", post(api::act_demo))
+        .route("/api/demo/rooms/{id}/reset", post(api::reset_demo))
         .route("/api/{*path}", any(api::not_found))
         .route("/", spa.clone())
         .route("/demo", spa.clone())
+        .route("/demo/{id}", spa.clone())
         .route("/room/{code}", spa.clone())
         .route("/privacy", spa.clone())
         .route("/terms", spa)
@@ -260,6 +267,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: api::rate_limits(),
+            demo_rooms: api::demo_rooms(),
         }
     }
 
@@ -281,7 +289,7 @@ mod tests {
     async fn direct_spa_routes_return_200_and_unknown_paths_do_not() {
         let assets = fixture_dir();
         let app = app_router(state("sqlite::memory:").await, &assets);
-        for path in ["/room/ABC123", "/privacy", "/terms"] {
+        for path in ["/demo", "/demo/ABC123", "/room/ABC123", "/privacy", "/terms"] {
             let response = app
                 .clone()
                 .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())

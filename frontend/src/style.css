@@ -101,7 +101,7 @@ summary:focus-visible {
   padding: 20px 32px;
 }
 .site-header nav { display: flex; align-items: center; gap: 12px; }
-.site-header nav a { color: var(--paper); min-height: 44px; display: inline-flex; align-items: center; }
+.site-header nav a { color: var(--paper); min-width: 44px; min-height: 44px; padding-inline: 6px; display: inline-flex; align-items: center; justify-content: center; }
 .wordmark {
   display: flex;
   gap: 10px;
@@ -137,7 +137,7 @@ h3 {
   margin: 0;
 }
 h1 {
-  font-size: clamp(3.2rem, 7vw, 6.6rem);
+  font-size: clamp(3.2rem, 6vw, 5.6rem);
   font-weight: 550;
 }
 h1 em {
@@ -193,9 +193,10 @@ p {
 .hero-copy {
   position: relative;
   z-index: 1;
-  width: min(680px, 58%);
-  padding: 50px max(32px, calc((100% - 1120px) / 2));
+  width: min(960px, 72%);
+  padding: 28px max(32px, calc((100% - 1120px) / 2));
 }
+.hero h1 { max-width: 620px; font-size: clamp(3.4rem, 5.3vw, 5rem); }
 .hero .lede {
   max-width: 580px;
   color: #d1ddd4;
@@ -420,6 +421,8 @@ footer p {
 footer nav {
   display: flex;
   gap: 22px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .build { display: inline-flex; align-items: center; min-height: 44px; }
 .demo-banner { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 24px; background: #e7d5ad; color: #172019; border-block: 1px solid #b28742; font-size: .92rem; }
@@ -434,6 +437,8 @@ footer nav {
 .demo-line { background: var(--player); border: 2px solid #5a4432; display:block; }
 .limits { border-top: 1px solid #63736a66; }
 .limits p:not(.kicker) { max-width: 620px; color: var(--steam); margin-top: 20px; }
+.sample-share { display: grid; gap: 10px; margin-top: 20px; }
+.text-link { color: var(--honey); min-height: 44px; display: inline-flex; align-items: center; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 footer a {
   color: var(--paper);
@@ -994,8 +999,8 @@ thead th {
     position: relative;
     order: -1;
     width: 100%;
-    height: 42vh;
-    min-height: 300px;
+    height: 190px;
+    min-height: 190px;
   }
   .hero-art:after {
     background: linear-gradient(0deg, var(--night), transparent 50%);
@@ -1005,14 +1010,15 @@ thead th {
   }
   .hero-copy {
     width: 100%;
-    padding: 0 20px 60px;
-    margin-top: -45px;
+    padding: 0 20px 48px;
+    margin-top: -34px;
   }
   .hero h1 {
-    font-size: clamp(3.1rem, 15vw, 4.5rem);
+    font-size: clamp(2.55rem, 11.5vw, 3.2rem);
   }
   .hero .lede {
     font-size: 1.08rem;
+    margin: 14px 0;
   }
   .hero-actions {
     align-items: stretch;
@@ -1021,6 +1027,7 @@ thead th {
   .trust {
     flex-wrap: wrap;
     gap: 8px 16px;
+    margin-top: 14px;
   }
   .join-strip form {
     align-items: stretch;
@@ -1070,6 +1077,7 @@ thead th {
   }
   footer nav {
     margin-top: 14px;
+    justify-content: flex-start;
   }
   .demo-banner { position: static; align-items: flex-start; flex-wrap: wrap; justify-content: flex-start; padding: 12px 20px; }
   .demo-game, .limits { padding: 42px 20px 64px; }

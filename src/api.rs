@@ -24,10 +24,38 @@ pub struct AppState {
     pub build_sha: String,
     pub write_lock: Arc<Mutex<()>>,
     pub rate_limits: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
+    pub demo_rooms: Arc<Mutex<HashMap<String, DemoRoom>>>,
 }
 
 pub fn rate_limits() -> Arc<Mutex<HashMap<String, (Instant, u32)>>> {
     Arc::new(Mutex::new(HashMap::new()))
+}
+
+pub fn demo_rooms() -> Arc<Mutex<HashMap<String, DemoRoom>>> {
+    Arc::new(Mutex::new(HashMap::new()))
+}
+
+#[derive(Clone)]
+pub struct DemoRoom {
+    id: String,
+    host_token: String,
+    guest_token: String,
+    turn: usize,
+    lines: Vec<u8>,
+    scores: [u8; 2],
+    revision: u64,
+    created: Instant,
+}
+
+#[derive(Deserialize)]
+pub struct DemoActionBody {
+    token: String,
+    line: u8,
+}
+
+#[derive(Deserialize)]
+pub struct DemoQuery {
+    token: Option<String>,
 }
 
 /// A private Azure Blob copy makes room state survive Container App restarts.
@@ -346,6 +374,111 @@ fn internal<E: std::fmt::Display>(e: E) -> ApiError {
 pub async fn health(State(s): State<AppState>) -> Json<Value> {
     Json(json!({"status":"ok","build_sha":s.build_sha}))
 }
+
+fn demo_view(room: &DemoRoom, token: Option<&str>) -> Value {
+    let you = match token {
+        Some(token) if token == room.host_token => Some(0),
+        Some(token) if token == room.guest_token => Some(1),
+        _ => None,
+    };
+    json!({
+        "id": room.id,
+        "players": ["Alex", "Ravi"],
+        "turn": room.turn,
+        "lines": room.lines,
+        "scores": room.scores,
+        "revision": room.revision,
+        "you": you
+    })
+}
+
+pub async fn create_demo(State(s): State<AppState>) -> ApiResult<Value> {
+    let mut rooms = s.demo_rooms.lock().await;
+    rooms.retain(|_, room| room.created.elapsed().as_secs() < 86_400);
+    let id = random_code();
+    let room = DemoRoom {
+        id: id.clone(),
+        host_token: random_token(32),
+        guest_token: random_token(32),
+        turn: 0,
+        lines: vec![0, 1, 3, 5, 7, 8],
+        scores: [2, 1],
+        revision: 0,
+        created: Instant::now(),
+    };
+    let token = room.host_token.clone();
+    let view = demo_view(&room, Some(&token));
+    rooms.insert(id, room);
+    Ok(Json(json!({"room": view, "player_token": token})))
+}
+
+pub async fn get_demo(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<DemoQuery>,
+) -> ApiResult<Value> {
+    let rooms = s.demo_rooms.lock().await;
+    let room = rooms.get(&id.to_uppercase()).ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "That sample room has expired. Create a new sample link.".into(),
+    ))?;
+    Ok(Json(demo_view(room, query.token.as_deref())))
+}
+
+pub async fn join_demo(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Value> {
+    let rooms = s.demo_rooms.lock().await;
+    let room = rooms.get(&id.to_uppercase()).ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "That sample room has expired. Create a new sample link.".into(),
+    ))?;
+    Ok(Json(json!({
+        "room": demo_view(room, Some(&room.guest_token)),
+        "player_token": room.guest_token
+    })))
+}
+
+pub async fn act_demo(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    body: Result<Json<DemoActionBody>, JsonRejection>,
+) -> ApiResult<Value> {
+    let Json(body) = body.map_err(invalid_json)?;
+    let mut rooms = s.demo_rooms.lock().await;
+    let room = rooms.get_mut(&id.to_uppercase()).ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "That sample room has expired. Create a new sample link.".into(),
+    ))?;
+    let player = if body.token == room.host_token {
+        0
+    } else if body.token == room.guest_token {
+        1
+    } else {
+        return Err(ApiError(StatusCode::UNAUTHORIZED, "That sample seat is not available.".into()));
+    };
+    if player != room.turn {
+        return Err(bad("Wait for the other sample player."));
+    }
+    if body.line > 8 || room.lines.contains(&body.line) {
+        return Err(bad("Choose an open sample line."));
+    }
+    room.lines.push(body.line);
+    room.turn = 1 - room.turn;
+    room.revision += 1;
+    Ok(Json(demo_view(room, Some(&body.token))))
+}
+
+pub async fn reset_demo(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Value> {
+    let mut rooms = s.demo_rooms.lock().await;
+    let room = rooms.get_mut(&id.to_uppercase()).ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "That sample room has expired. Create a new sample link.".into(),
+    ))?;
+    room.turn = 0;
+    room.lines = vec![0, 1, 3, 5, 7, 8];
+    room.scores = [2, 1];
+    room.revision += 1;
+    Ok(Json(demo_view(room, None)))
+}
 pub async fn not_found() -> ApiError {
     ApiError(
         StatusCode::NOT_FOUND,
@@ -560,6 +693,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
+            demo_rooms: demo_rooms(),
         }
     }
 
@@ -582,6 +716,39 @@ mod tests {
             response["build_sha"],
             "830138fc4c0e5ece8448a31b1e989b8f4625a9ce"
         );
+    }
+
+    #[tokio::test]
+    async fn demo_rooms_are_memory_only_and_public_views_omit_tokens() {
+        let state = state().await;
+        let created = create_demo(State(state.clone())).await.unwrap().0;
+        let id = created["room"]["id"].as_str().unwrap().to_owned();
+        let token = created["player_token"].as_str().unwrap().to_owned();
+        let public = get_demo(
+            State(state.clone()),
+            Path(id.clone()),
+            Query(DemoQuery { token: None }),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(public["players"], json!(["Alex", "Ravi"]));
+        assert!(!public.to_string().contains("token"));
+        let stored_rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+        assert_eq!(stored_rooms, 0, "a demo must not create a production room row");
+        let moved = act_demo(
+            State(state),
+            Path(id),
+            Ok(Json(DemoActionBody { token, line: 2 })),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(moved["turn"], 1);
+        assert_eq!(moved["revision"], 1);
     }
 
     #[tokio::test]
@@ -672,6 +839,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
+            demo_rooms: demo_rooms(),
         };
         let room = create(
             State(first_state),
@@ -697,6 +865,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
+            demo_rooms: demo_rooms(),
         };
         let loaded = get_room(
             State(replacement_state),
@@ -738,6 +907,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
+            demo_rooms: demo_rooms(),
         };
         let second = AppState {
             db: second_db.clone(),
@@ -745,6 +915,7 @@ mod tests {
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
+            demo_rooms: demo_rooms(),
         };
 
         let created = create(
