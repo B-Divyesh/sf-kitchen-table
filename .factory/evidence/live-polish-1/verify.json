@@ -1,0 +1,14 @@
+{
+  "url": "https://kitchen-table.sociobot.in",
+  "loadMs": 616,
+  "errors": [],
+  "a11y": {
+    "title": "Kitchen Table — family games on phones",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 1216
+  }
+}

@@ -57,3 +57,15 @@ handoff after deployment.
 
 The full landing copy audit is in `.factory/copy-audit.md`. No TODOs or deferred
 findings remain.
+
+## Live replay
+
+Every mapping above was rechecked on the deployed revision at
+`https://kitchen-table.sociobot.in` on 2026-08-28. The cold-load evidence is
+`.factory/evidence/live-polish-1/verify.json` and its paired desktop/mobile
+screenshots; the 390 px demo replay is
+`.factory/evidence/polish-1-live-demo-mobile.png`. The live probe confirmed
+`/`, `/demo`, `/?demo=1`, `/privacy`, `/terms`, `/robots.txt`, and
+`/sitemap.xml` return 200, while `/not-a-real-route` returns 404 with the
+Page not found title. The live rate probe made 100 requests in 337 ms and
+received 40 × 200 and 60 × 429 with `Retry-After: 1`.
