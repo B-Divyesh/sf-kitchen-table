@@ -158,7 +158,10 @@ async fn rate_limit(
         *entry = (now, 0);
     }
     entry.1 += 1;
-    if entry.1 > 40 {
+    // Container Apps can briefly spread a burst over its three active
+    // replicas. Keeping each replica to 20 requests per second ensures a
+    // single client still receives 429s during a 100-request ingress burst.
+    if entry.1 > 20 {
         return (
             StatusCode::TOO_MANY_REQUESTS,
             [(RETRY_AFTER, HeaderValue::from_static("1"))],
@@ -353,7 +356,7 @@ mod tests {
     async fn endpoints_rate_limit_by_forwarded_client_and_include_retry_after() {
         let assets = fixture_dir();
         let app = app_router(state("sqlite::memory:").await, &assets);
-        for _ in 0..40 {
+        for _ in 0..20 {
             let response = app
                 .clone()
                 .oneshot(

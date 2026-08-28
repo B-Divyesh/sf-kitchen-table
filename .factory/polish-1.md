@@ -8,7 +8,7 @@ handoff after deployment.
 | --- | --- | --- |
 | B1, PW-01 | Kept the plain job headline; hero now shows the sample action, outcome, and all three facts before the desktop fold. | `polish-1-desktop.png`; `npm test` |
 | B2 | `/demo` and `?demo=1` seed Alex and Ravi, use only `demo:`, show the persistent banner, reset, and a destructive exit to real mode. | `@claim:demo-isolated`, `@claim:demo-reset`, `@claim:demo-offline`; `polish-1-demo-mobile.png` |
-| B3 | Expanded the registry from seven to twelve claims; every listed command exercises an observable result. | `.factory/claims.json`; all claim commands pass from clean clone |
+| B3 | Expanded the registry from seven to thirteen claims; every listed command exercises an observable result. | `.factory/claims.json`; all claim commands pass from clean clone |
 | B4, PW-16, UC-11 | Creation disclosure names nickname, moves, room code, and random seat token; Privacy agrees. | `@claim:storage-disclosure`, `@claim:seat-token-private` |
 | B5 | Unknown paths keep HTTP 404, return a useful document title before JS, then render the styled recovery page with working game and join links. | Rust `direct_spa_routes_return_200_and_unknown_paths_do_not`; local `/not-a-real-route` check |
 | M1 | The matching `package-lock.json` is tracked; clean `npm ci` is part of verification. | clean-clone `npm ci && npm test && npm run build` |
