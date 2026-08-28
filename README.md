@@ -10,15 +10,18 @@ next turn.
 - **High Five** — a five-dice score-sheet game for two players.
 
 There is no matchmaking, chat, advertising, analytics, or account profile.
-Nicknames, room state, and random seat tokens are stored in SQLite. Seat tokens
-stay in the browser's local storage.
+Nicknames, room state, and random seat tokens are stored privately. In
+production, Azure Blob Storage is the authoritative room store and every write
+uses an ETag compare-and-swap so a room keeps working across replicas and
+restarts. SQLite is a local development cache. Seat tokens stay in the
+browser's local storage.
 
 ## Run locally
 
 Requirements: Node 22+, npm, and Rust 1.85+.
 
 ```sh
-npm install
+npm ci
 npm run build
 DATABASE_URL='sqlite://kitchen-table.db?mode=rwc' cargo run
 ```
@@ -42,8 +45,10 @@ docker build -t kitchen-table .
 docker run --rm -p 8080:8080 -v kitchen-table-data:/data kitchen-table
 ```
 
-`DATABASE_URL`, `PORT`, `BUILD_SHA`, and `RUST_LOG` are the runtime settings.
-Health checks are available at `/health`.
+`PORT` defaults to `8080`; `DATABASE_URL`, `BUILD_SHA`, and `RUST_LOG` are
+optional overrides. The production image uses the Container App's managed
+identity (no storage key or browser credential) and reports its injected build
+SHA at `/health`. Health checks are available at `/health`.
 
 ## Privacy and accessibility
 

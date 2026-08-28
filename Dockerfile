@@ -20,13 +20,18 @@ WORKDIR /app
 COPY --from=server /app/target/release/kitchen-table /usr/local/bin/kitchen-table
 COPY --from=web /app/frontend/dist ./frontend/dist
 USER table
-# The deployment must inject the exact Git commit with --build-arg BUILD_SHA.
-# "unknown" is deliberately not a stale release identity.
-ARG BUILD_SHA=unknown
+# The deployment injects the exact source commit with --build-arg BUILD_SHA.
+# A local image remains identifiable without claiming to be a release.
+ARG BUILD_SHA=dev
 ENV BUILD_SHA=$BUILD_SHA
-# SQLite is a local hot cache. Room snapshots are durably written to private
-# Azure Blob Storage by the app's managed identity before a response succeeds.
-ENV PORT=8080 DATABASE_URL=sqlite:///tmp/kitchen-table.db?mode=rwc
+# SQLite is only a local restart cache. Every production request reads and
+# conditionally writes this private Blob container, so replicas cannot diverge.
+# These values are identifiers, not credentials; the managed identity supplies
+# short-lived access tokens at runtime.
+ENV PORT=8080 DATABASE_URL=sqlite:///tmp/kitchen-table.db?mode=rwc \
+    AZURE_STORAGE_ACCOUNT=sociobotblob \
+    AZURE_STORAGE_CONTAINER=kitchen-table-rooms \
+    AZURE_CLIENT_ID=ba10d5bc-6375-4325-8892-4c7a5be500ca
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O - http://127.0.0.1:8080/health || exit 1
 CMD ["kitchen-table"]

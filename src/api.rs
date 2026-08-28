@@ -35,7 +35,23 @@ pub struct BlobStore {
     client: Client,
 }
 
+#[derive(Clone)]
+struct VersionedRoom {
+    room: Room,
+    etag: Option<String>,
+}
+
 pub fn blob_store_from_env() -> Option<BlobStore> {
+    // A Docker image remains useful on a laptop with no Azure metadata
+    // endpoint: it falls back to the local SQLite store there. Container Apps
+    // injects IDENTITY_ENDPOINT for its assigned identity, which turns on the
+    // authoritative Blob store automatically. AZURE_ENABLE_BLOB is useful for
+    // explicit Azure-host integration tests.
+    if std::env::var_os("IDENTITY_ENDPOINT").is_none()
+        && std::env::var_os("AZURE_ENABLE_BLOB").is_none()
+    {
+        return None;
+    }
     let account = std::env::var("AZURE_STORAGE_ACCOUNT").ok()?;
     let container = std::env::var("AZURE_STORAGE_CONTAINER").ok()?;
     Some(BlobStore {
@@ -94,12 +110,13 @@ impl BlobStore {
         )
     }
 
-    async fn get(&self, code: &str) -> Result<Option<Room>, ApiError> {
+    async fn get(&self, code: &str) -> Result<Option<VersionedRoom>, ApiError> {
         let token = self.token().await?;
         let response = self
             .client
             .get(self.url(code))
             .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-date", httpdate::fmt_http_date(SystemTime::now()))
             .header("x-ms-version", "2023-11-03")
             .send()
             .await
@@ -107,29 +124,40 @@ impl BlobStore {
         if response.status() == HttpStatus::NOT_FOUND {
             return Ok(None);
         }
-        let bytes = response
-            .error_for_status()
-            .map_err(internal)?
-            .bytes()
-            .await
-            .map_err(internal)?;
-        serde_json::from_slice(&bytes).map(Some).map_err(internal)
+        let response = response.error_for_status().map_err(internal)?;
+        let etag = response
+            .headers()
+            .get("etag")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let bytes = response.bytes().await.map_err(internal)?;
+        let room = serde_json::from_slice(&bytes).map_err(internal)?;
+        Ok(Some(VersionedRoom { room, etag }))
     }
 
-    async fn put(&self, room: &Room) -> Result<(), ApiError> {
+    /// Azure Blob ETags make this the authoritative compare-and-swap boundary
+    /// across every Container App replica. A process-local mutex is only an
+    /// optimisation; it is never relied on for correctness.
+    async fn put(&self, room: &Room, etag: Option<&str>) -> Result<(), ApiError> {
         let token = self.token().await?;
         let body = serde_json::to_vec(room).map_err(internal)?;
-        self.client
+        let request = self
+            .client
             .put(self.url(&room.code))
             .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-date", httpdate::fmt_http_date(SystemTime::now()))
             .header("x-ms-version", "2023-11-03")
             .header("x-ms-blob-type", "BlockBlob")
-            .body(body)
-            .send()
-            .await
-            .map_err(internal)?
-            .error_for_status()
-            .map_err(internal)?;
+            .body(body);
+        let request = match etag {
+            Some(etag) => request.header("if-match", etag),
+            None => request.header("if-none-match", "*"),
+        };
+        let response = request.send().await.map_err(internal)?;
+        if response.status() == HttpStatus::PRECONDITION_FAILED {
+            return Err(conflict());
+        }
+        response.error_for_status().map_err(internal)?;
         Ok(())
     }
 }
@@ -197,6 +225,15 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 fn bad(s: impl Into<String>) -> ApiError {
     ApiError(StatusCode::BAD_REQUEST, s.into())
 }
+fn conflict() -> ApiError {
+    ApiError(
+        StatusCode::CONFLICT,
+        "Someone else updated this room. Please try that again.".into(),
+    )
+}
+fn is_conflict(error: &ApiError) -> bool {
+    error.0 == StatusCode::CONFLICT
+}
 /// Keep JSON parse failures in the same small, actionable API vocabulary as
 /// validation failures. Axum's default rejection includes framework details
 /// (and used to leak a 422 response for an unknown game enum).
@@ -263,27 +300,32 @@ async fn save_local(db: &AnyPool, room: &Room) -> Result<(), ApiError> {
         .map_err(internal)?;
     Ok(())
 }
-async fn load(s: &AppState, code: &str) -> Result<Room, ApiError> {
-    match load_local(&s.db, code).await {
-        Ok(room) => Ok(room),
-        Err(ApiError(StatusCode::NOT_FOUND, _)) => {
-            if let Some(blob) = &s.blob {
-                if let Some(room) = blob.get(code).await? {
-                    save_local(&s.db, &room).await?;
-                    return Ok(room);
-                }
-            }
-            Err(ApiError(
-                StatusCode::NOT_FOUND,
-                "That room was not found. Check the six-letter code.".into(),
-            ))
-        }
-        Err(error) => Err(error),
-    }
-}
-async fn save(s: &AppState, room: &Room) -> Result<(), ApiError> {
+async fn load_versioned(s: &AppState, code: &str) -> Result<VersionedRoom, ApiError> {
+    // Production must not consult a replica-local cache first. It may be
+    // stale as soon as another phone lands on another replica. Blob is the
+    // source of truth for every read and every mutation; SQLite is only a
+    // restart-friendly local fallback for development without Azure storage.
     if let Some(blob) = &s.blob {
-        blob.put(room).await?;
+        if let Some(versioned) = blob.get(code).await? {
+            save_local(&s.db, &versioned.room).await?;
+            return Ok(versioned);
+        }
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "That room was not found. Check the six-letter code.".into(),
+        ));
+    }
+    Ok(VersionedRoom {
+        room: load_local(&s.db, code).await?,
+        etag: None,
+    })
+}
+async fn load(s: &AppState, code: &str) -> Result<Room, ApiError> {
+    Ok(load_versioned(s, code).await?.room)
+}
+async fn save(s: &AppState, room: &Room, etag: Option<&str>) -> Result<(), ApiError> {
+    if let Some(blob) = &s.blob {
+        blob.put(room, etag).await?;
     }
     save_local(&s.db, room).await
 }
@@ -328,21 +370,28 @@ pub async fn create(
             game_state: None,
             revision: 0,
         };
-        let data = serde_json::to_string(&room).map_err(internal)?;
-        let now = now_seconds();
-        let result = sqlx::query(
-            "INSERT INTO rooms(code,state_json,created_at,updated_at) VALUES($1,$2,$3,$3) ON CONFLICT (code) DO NOTHING",
-        )
-            .bind(&code)
-            .bind(data)
-            .bind(now)
-            .execute(&s.db)
-            .await
-            .map_err(internal)?;
-        if result.rows_affected() == 1 {
-            if let Some(blob) = &s.blob {
-                blob.put(&room).await?;
+        let created = if let Some(blob) = &s.blob {
+            match blob.put(&room, None).await {
+                Ok(()) => true,
+                Err(error) if is_conflict(&error) => false,
+                Err(error) => return Err(error),
             }
+        } else {
+            let data = serde_json::to_string(&room).map_err(internal)?;
+            let now = now_seconds();
+            let result = sqlx::query(
+                "INSERT INTO rooms(code,state_json,created_at,updated_at) VALUES($1,$2,$3,$3) ON CONFLICT (code) DO NOTHING",
+            )
+                .bind(&code)
+                .bind(data)
+                .bind(now)
+                .execute(&s.db)
+                .await
+                .map_err(internal)?;
+            result.rows_affected() == 1
+        };
+        if created {
+            save_local(&s.db, &room).await?;
             return Ok(Json(
                 json!({"room":view(&room,Some(&player.token)),"player_token":player.token}),
             ));
@@ -364,34 +413,43 @@ pub async fn join(
     body: Result<Json<JoinBody>, JsonRejection>,
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
-    let _write = s.write_lock.lock().await;
-    let mut room = load(&s, &code.to_uppercase()).await?;
-    if room.status != RoomStatus::Lobby {
-        return Err(bad("This game has already started."));
-    }
-    let (_, max) = room.game.players();
-    if room.players.len() >= max {
-        return Err(bad("This room is full."));
-    }
     let nickname = clean_name(&b.nickname)?;
-    if room
-        .players
-        .iter()
-        .any(|p| p.nickname.eq_ignore_ascii_case(&nickname))
-    {
-        return Err(bad("Someone at this table already uses that nickname."));
-    }
     let p = Player {
         id: random_token(8),
         nickname,
         token: random_token(32),
     };
-    room.players.push(p.clone());
-    room.revision += 1;
-    save(&s, &room).await?;
-    Ok(Json(
-        json!({"room":view(&room,Some(&p.token)),"player_token":p.token}),
-    ))
+    let _write = s.write_lock.lock().await;
+    for _ in 0..8 {
+        let mut versioned = load_versioned(&s, &code.to_uppercase()).await?;
+        let room = &mut versioned.room;
+        if room.status != RoomStatus::Lobby {
+            return Err(bad("This game has already started."));
+        }
+        let (_, max) = room.game.players();
+        if room.players.len() >= max {
+            return Err(bad("This room is full."));
+        }
+        if room
+            .players
+            .iter()
+            .any(|player| player.nickname.eq_ignore_ascii_case(&p.nickname))
+        {
+            return Err(bad("Someone at this table already uses that nickname."));
+        }
+        room.players.push(p.clone());
+        room.revision += 1;
+        match save(&s, room, versioned.etag.as_deref()).await {
+            Ok(()) => {
+                return Ok(Json(
+                    json!({"room":view(room,Some(&p.token)),"player_token":p.token}),
+                ))
+            }
+            Err(error) if is_conflict(&error) => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(conflict())
 }
 pub async fn start(
     State(s): State<AppState>,
@@ -400,36 +458,43 @@ pub async fn start(
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
-    let mut room = load(&s, &code.to_uppercase()).await?;
-    let idx = room
-        .players
-        .iter()
-        .position(|p| p.token == b.token)
-        .ok_or(ApiError(
-            StatusCode::UNAUTHORIZED,
-            "Your seat link is missing or invalid.".into(),
-        ))?;
-    if room.players[idx].id != room.owner_id {
-        return Err(ApiError(
-            StatusCode::FORBIDDEN,
-            "Only the room host can start the game.".into(),
-        ));
+    for _ in 0..8 {
+        let mut versioned = load_versioned(&s, &code.to_uppercase()).await?;
+        let room = &mut versioned.room;
+        let idx = room
+            .players
+            .iter()
+            .position(|p| p.token == b.token)
+            .ok_or(ApiError(
+                StatusCode::UNAUTHORIZED,
+                "Your seat link is missing or invalid.".into(),
+            ))?;
+        if room.players[idx].id != room.owner_id {
+            return Err(ApiError(
+                StatusCode::FORBIDDEN,
+                "Only the room host can start the game.".into(),
+            ));
+        }
+        let (min, _) = room.game.players();
+        if room.players.len() < min {
+            return Err(bad(format!(
+                "Invite {} more player before starting.",
+                min - room.players.len()
+            )));
+        }
+        if room.status != RoomStatus::Lobby {
+            return Err(bad("This room has already started."));
+        }
+        room.game_state = Some(GameState::new(&room.game, room.players.len()));
+        room.status = RoomStatus::Playing;
+        room.revision += 1;
+        match save(&s, room, versioned.etag.as_deref()).await {
+            Ok(()) => return Ok(Json(view(room, Some(&b.token)))),
+            Err(error) if is_conflict(&error) => continue,
+            Err(error) => return Err(error),
+        }
     }
-    let (min, _) = room.game.players();
-    if room.players.len() < min {
-        return Err(bad(format!(
-            "Invite {} more player before starting.",
-            min - room.players.len()
-        )));
-    }
-    if room.status != RoomStatus::Lobby {
-        return Err(bad("This room has already started."));
-    }
-    room.game_state = Some(GameState::new(&room.game, room.players.len()));
-    room.status = RoomStatus::Playing;
-    room.revision += 1;
-    save(&s, &room).await?;
-    Ok(Json(view(&room, Some(&b.token))))
+    Err(conflict())
 }
 pub async fn action(
     State(s): State<AppState>,
@@ -438,29 +503,36 @@ pub async fn action(
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
-    let mut room = load(&s, &code.to_uppercase()).await?;
-    if room.status != RoomStatus::Playing {
-        return Err(bad("This game is not accepting moves."));
+    for _ in 0..8 {
+        let mut versioned = load_versioned(&s, &code.to_uppercase()).await?;
+        let room = &mut versioned.room;
+        if room.status != RoomStatus::Playing {
+            return Err(bad("This game is not accepting moves."));
+        }
+        let idx = room
+            .players
+            .iter()
+            .position(|p| p.token == b.token)
+            .ok_or(ApiError(
+                StatusCode::UNAUTHORIZED,
+                "Your seat link is missing or invalid.".into(),
+            ))?;
+        let state = room
+            .game_state
+            .as_mut()
+            .ok_or_else(|| internal("missing game state"))?;
+        state.act(idx, &b.action).map_err(bad)?;
+        if state.finished() {
+            room.status = RoomStatus::Finished;
+        }
+        room.revision += 1;
+        match save(&s, room, versioned.etag.as_deref()).await {
+            Ok(()) => return Ok(Json(view(room, Some(&b.token)))),
+            Err(error) if is_conflict(&error) => continue,
+            Err(error) => return Err(error),
+        }
     }
-    let idx = room
-        .players
-        .iter()
-        .position(|p| p.token == b.token)
-        .ok_or(ApiError(
-            StatusCode::UNAUTHORIZED,
-            "Your seat link is missing or invalid.".into(),
-        ))?;
-    let state = room
-        .game_state
-        .as_mut()
-        .ok_or_else(|| internal("missing game state"))?;
-    state.act(idx, &b.action).map_err(bad)?;
-    if state.finished() {
-        room.status = RoomStatus::Finished;
-    }
-    room.revision += 1;
-    save(&s, &room).await?;
-    Ok(Json(view(&room, Some(&b.token))))
+    Err(conflict())
 }
 
 #[cfg(test)]
@@ -573,6 +645,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_room_survives_a_process_replacement_when_database_storage_is_persistent() {
+        install_db_drivers();
         let path = std::env::temp_dir().join(format!(
             "kitchen-table-persistence-{}.db",
             std::process::id()
@@ -626,6 +699,93 @@ mod tests {
         .0;
         assert_eq!(loaded["players"].as_array().unwrap().len(), 1);
         replacement.close().await;
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn separate_replicas_share_a_room_and_never_turn_a_fresh_link_into_a_404() {
+        install_db_drivers();
+        let path = std::env::temp_dir().join(format!(
+            "kitchen-table-shared-store-{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let url = format!("sqlite://{}?mode=rwc", path.display());
+
+        let first_db = AnyPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&first_db).await.unwrap();
+        let second_db = AnyPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        let first = AppState {
+            db: first_db.clone(),
+            blob: None,
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        let second = AppState {
+            db: second_db.clone(),
+            blob: None,
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+
+        let created = create(
+            State(first.clone()),
+            Ok(Json(CreateBody {
+                game: GameKind::Race,
+                nickname: "Host".into(),
+            })),
+        )
+        .await
+        .unwrap()
+        .0;
+        let code = created["room"]["code"].as_str().unwrap().to_owned();
+
+        // Alternate the simulated load balancer between distinct process
+        // states. Every response reaches the same durable room record.
+        for name in ["A", "B", "C"] {
+            let result = join(
+                State(second.clone()),
+                Path(code.clone()),
+                Ok(Json(JoinBody {
+                    nickname: name.into(),
+                })),
+            )
+            .await;
+            assert!(result.is_ok(), "a second replica must join a fresh room");
+        }
+        let full = join(
+            State(first.clone()),
+            Path(code.clone()),
+            Ok(Json(JoinBody {
+                nickname: "D".into(),
+            })),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(full.0, StatusCode::BAD_REQUEST);
+
+        for replica in [first, second] {
+            let public = get_room(
+                State(replica),
+                Path(code.clone()),
+                Query(RoomQuery { token: None }),
+            )
+            .await
+            .unwrap()
+            .0;
+            assert_eq!(public["players"].as_array().unwrap().len(), 4);
+            assert!(public.to_string().find("player_token").is_none());
+        }
+        first_db.close().await;
+        second_db.close().await;
         let _ = std::fs::remove_file(path);
     }
 }
