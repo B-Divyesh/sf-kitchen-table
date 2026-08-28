@@ -24,10 +24,9 @@ USER table
 # "unknown" is deliberately not a stale release identity.
 ARG BUILD_SHA=unknown
 ENV BUILD_SHA=$BUILD_SHA
-# Azure Files is a durable SMB mount. With the Container App capped to one
-# replica and the pool capped to one connection, SQLite's file lock is neither
-# needed nor compatible with SMB's locking semantics.
-ENV PORT=8080 DATABASE_URL=sqlite:///data/kitchen-table.db?mode=rwc&nolock=1
+# Azure Files is a durable SMB mount. The Container App is capped to one
+# replica and the database pool to one connection, so SQLite has one owner.
+ENV PORT=8080 DATABASE_URL=sqlite:///data/kitchen-table.db?mode=rwc
 VOLUME ["/data"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O - http://127.0.0.1:8080/health || exit 1
