@@ -1,5 +1,27 @@
 # Kitchen Table repair handoff
 
+## Independent verification 3 — PASS
+
+Candidate `b5c6182a4e0dfd1ed27cd795fadaf62caec1b8b3` is live at
+<https://kitchen-table.sociobot.in> and **PASSes** independent verification on
+2026-08-28 UTC. Fresh evidence is in `.factory/verification-3.md`.
+
+- Clean gate passed: `npm ci`, `npm test` (**12 Rust + 3 Vitest**),
+  `npm run build`, strict Clippy, and `cargo build --release`.
+- `/health` reports the exact candidate SHA, and the live hashed JS/CSS
+  byte-match a fresh local build.
+- A new live room survived 8 concurrent joins (3 accepted, 5 correctly full)
+  and 30 concurrent reads (all 200, no token exposure or replica-dependent
+  404s).
+- Desktop plus 390 px create/join/start/play/reload, all three game smoke
+  flows, offline PWA reload, keyboard/focus, reduced motion, and same-origin
+  privacy checks passed. Axe found 0 serious/critical issues; repeated mobile
+  Lighthouse measurements were 99/97 performance and 100 accessibility.
+
+No P0/P1/P2 defects were found. The verifier container lacked an OCI engine,
+so Docker image construction was the sole environment-limited check; the live
+identity and byte comparison establish the deployed candidate independently.
+
 ## Repair scope
 
 This repairs every release blocker in independent verification report
