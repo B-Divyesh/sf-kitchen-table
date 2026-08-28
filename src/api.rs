@@ -316,6 +316,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn health_reports_the_configured_build_sha() {
+        let mut state = state().await;
+        state.build_sha = "830138fc4c0e5ece8448a31b1e989b8f4625a9ce".into();
+
+        let response = health(State(state)).await.0;
+
+        assert_eq!(response["status"], "ok");
+        assert_eq!(response["build_sha"], "830138fc4c0e5ece8448a31b1e989b8f4625a9ce");
+    }
+
+    #[tokio::test]
     async fn room_lifecycle_routes_are_authoritative() {
         let state = state().await;
         let created = create(
