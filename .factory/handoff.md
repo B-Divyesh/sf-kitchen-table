@@ -1,4 +1,36 @@
-# Kitchen Table — polish 3 handoff
+# Kitchen Table — review 4 handoff
+
+## Review result
+
+Adversarial first-read review 4 passed at live build
+`07482e63d94b066e660ca009d7404b92b9dd6307`. The report is
+`.factory/review-4.md`. No product code changed in this review.
+
+Verification from a fresh clone (`/tmp/kitchen-table-review4-WU3XNm`):
+
+    npm ci
+    npm test
+    npm run build
+
+All passed: 15 Rust tests, 3 Vitest tests, 24 Playwright tests, and artwork
+provenance. Every one of the 17 commands in `.factory/claims.json` also passed
+independently. The live browser suite passed with:
+
+    PLAYWRIGHT_BASE_URL=https://kitchen-table.sociobot.in npx playwright test
+
+Additional review checks passed: cold 390 × 844 and 1440 × 900 first screens,
+demo reset/exit isolation with an existing real-storage sentinel, offline
+sample play, live two-phone sample replay, route/link crawl, and local
+seven-screen axe audit (zero serious/critical).
+
+## Known gaps
+
+None found in this review. Preserve the existing demo/claim isolation and
+repeat the live multi-context demo check after future deployment changes.
+
+---
+
+# Previous polish 3 handoff
 
 ## Shipped
 
