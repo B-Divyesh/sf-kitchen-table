@@ -37,15 +37,25 @@ Commit: 70ae421e2bb13a993cbbeb275540c1a034bb6817
   SPA recovery page; robots.txt returned 200.
 - Performance build output: application JavaScript 22.14 kB raw / 8.15 kB
   gzip; CSS 18.43 kB raw / 5.10 kB gzip.
-- Docker image build was not run because Docker is unavailable in this worker
-  image. The Dockerfile remains multi-stage, non-root, uses BUILD_SHA, serves
-  PORT 8080, and defaults SQLite to writable /data.
+- Docker is unavailable in this worker image, but the factory ACR build passed:
+  run chfx built
+  sociobotregistry.azurecr.io/sf-kitchen-table:e966fe12a4d8
+  (sha256:5453b1d4ea7366a79a60910956a9e3590f0acdf4f84ef39cc0ef02623b2c8bde).
 
 ## Deployment
 
-The container deployment configuration is the root Dockerfile. No deployment
-credentials or factory deployment command are present in this work order, so no
-external deployment was performed.
+The root Dockerfile was built by Azure Container Registry run chfx and deployed
+to Container App sf-kitchen-table in resource group sociobot. Revision
+sf-kitchen-table--e966fe1 is Running with 100% traffic.
+
+Live verification on 2026-08-28:
+
+- https://kitchen-table.sociobot.in/health returned build SHA
+  e966fe12a4d8a3eea29c3f85ea96b602e75e93b0.
+- The custom domain returned 404 for /not-a-real-route.
+- verify-url.sh passed on the custom domain with zero console errors.
+- A live 390 px Playwright check opened /demo with the banner and Make a Square
+  heading.
 
 ## Known gaps
 
