@@ -47,17 +47,31 @@ pub fn blob_store_from_env() -> Option<BlobStore> {
 
 impl BlobStore {
     async fn token(&self) -> Result<String, ApiError> {
-        let response = self
-            .client
-            .get("http://169.254.169.254/metadata/identity/oauth2/token")
-            .header("Metadata", "true")
-            .query(&[
-                ("api-version", "2019-08-01"),
-                ("resource", "https://storage.azure.com/"),
-            ])
-            .send()
-            .await
-            .map_err(internal)?;
+        let parameters = [
+            ("api-version", "2019-08-01"),
+            ("resource", "https://storage.azure.com/"),
+        ];
+        // Container Apps expose their managed identity through an injected
+        // endpoint and nonce header. IMDS is retained for local Azure hosts.
+        let response = if let (Ok(endpoint), Ok(header)) = (
+            std::env::var("IDENTITY_ENDPOINT"),
+            std::env::var("IDENTITY_HEADER"),
+        ) {
+            self.client
+                .get(endpoint)
+                .header("X-IDENTITY-HEADER", header)
+                .query(&parameters)
+                .send()
+                .await
+        } else {
+            self.client
+                .get("http://169.254.169.254/metadata/identity/oauth2/token")
+                .header("Metadata", "true")
+                .query(&parameters)
+                .send()
+                .await
+        }
+        .map_err(internal)?;
         let body: Value = response
             .error_for_status()
             .map_err(internal)?
