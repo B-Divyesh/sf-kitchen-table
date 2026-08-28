@@ -10,7 +10,7 @@ use axum::{
     middleware::{self, Next},
     response::Response,
 };
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::any::AnyPoolOptions;
 use std::path::Path as FsPath;
 use std::sync::Arc;
 use std::{net::SocketAddr, str::FromStr};
@@ -33,16 +33,15 @@ async fn main() {
         .init();
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite://kitchen-table.db?mode=rwc".into());
-    let db = SqlitePoolOptions::new()
-        // The production database lives on a persistent Azure Files mount.
-        // This deployment is intentionally capped at one replica; keeping one
-        // connection also makes SQLite's single-writer contract explicit.
-        .max_connections(1)
+    api::install_db_drivers();
+    let db = AnyPoolOptions::new()
+        .max_connections(8)
         .connect(&database_url)
         .await
-        .expect("connect sqlite");
-    sqlx::migrate!().run(&db).await.expect("migrate sqlite");
-    sqlx::query("DELETE FROM rooms WHERE updated_at < unixepoch() - 7776000")
+        .expect("connect database");
+    sqlx::migrate!().run(&db).await.expect("migrate database");
+    sqlx::query("DELETE FROM rooms WHERE updated_at < $1")
+        .bind(api::now_seconds() - 7_776_000)
         .execute(&db)
         .await
         .expect("expire inactive rooms");
@@ -52,10 +51,10 @@ async fn main() {
         let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + day, day);
         loop {
             interval.tick().await;
-            if let Err(error) =
-                sqlx::query("DELETE FROM rooms WHERE updated_at < unixepoch() - 7776000")
-                    .execute(&cleanup_db)
-                    .await
+            if let Err(error) = sqlx::query("DELETE FROM rooms WHERE updated_at < $1")
+                .bind(api::now_seconds() - 7_776_000)
+                .execute(&cleanup_db)
+                .await
             {
                 tracing::warn!(%error, "inactive room cleanup failed");
             }
@@ -63,6 +62,7 @@ async fn main() {
     });
     let state = api::AppState {
         db,
+        blob: api::blob_store_from_env(),
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
         write_lock: Arc::new(Mutex::new(())),
     };
@@ -156,13 +156,14 @@ mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
     use http_body_util::BodyExt;
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::any::AnyPoolOptions;
     use std::{fs, sync::Arc};
     use tokio::sync::Mutex;
     use tower::ServiceExt;
 
     async fn state(database_url: &str) -> api::AppState {
-        let db = SqlitePoolOptions::new()
+        api::install_db_drivers();
+        let db = AnyPoolOptions::new()
             .max_connections(1)
             .connect(database_url)
             .await
@@ -170,6 +171,7 @@ mod tests {
         sqlx::migrate!().run(&db).await.unwrap();
         api::AppState {
             db,
+            blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
         }

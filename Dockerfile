@@ -15,7 +15,7 @@ COPY src ./src
 RUN cargo build --release
 
 FROM alpine:3.21
-RUN addgroup -S table && adduser -S table -G table && mkdir -p /data && chown table:table /data
+RUN addgroup -S table && adduser -S table -G table
 WORKDIR /app
 COPY --from=server /app/target/release/kitchen-table /usr/local/bin/kitchen-table
 COPY --from=web /app/frontend/dist ./frontend/dist
@@ -24,10 +24,9 @@ USER table
 # "unknown" is deliberately not a stale release identity.
 ARG BUILD_SHA=unknown
 ENV BUILD_SHA=$BUILD_SHA
-# Azure Files is a durable SMB mount. The Container App is capped to one
-# replica and the database pool to one connection, so SQLite has one owner.
-ENV PORT=8080 DATABASE_URL=sqlite:///data/kitchen-table.db?mode=rwc
-VOLUME ["/data"]
+# SQLite is a local hot cache. Room snapshots are durably written to private
+# Azure Blob Storage by the app's managed identity before a response succeeds.
+ENV PORT=8080 DATABASE_URL=sqlite:///tmp/kitchen-table.db?mode=rwc
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O - http://127.0.0.1:8080/health || exit 1
 CMD ["kitchen-table"]

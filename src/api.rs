@@ -6,17 +6,120 @@ use axum::{
     Json,
 };
 use rand::{distributions::Alphanumeric, Rng};
+use reqwest::{Client, StatusCode as HttpStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{Row, SqlitePool};
-use std::sync::Arc;
+use sqlx::{AnyPool, Row};
+use std::{
+    sync::{Arc, Once},
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: SqlitePool,
+    pub db: AnyPool,
+    pub blob: Option<BlobStore>,
     pub build_sha: String,
     pub write_lock: Arc<Mutex<()>>,
+}
+
+/// A private Azure Blob copy makes room state survive Container App restarts.
+/// The app uses its assigned managed identity; no storage key ships in the
+/// image or browser. SQLite remains a fast local cache while one replica is
+/// active, and this is the durable source of truth between replicas.
+#[derive(Clone)]
+pub struct BlobStore {
+    account: String,
+    container: String,
+    client: Client,
+}
+
+pub fn blob_store_from_env() -> Option<BlobStore> {
+    let account = std::env::var("AZURE_STORAGE_ACCOUNT").ok()?;
+    let container = std::env::var("AZURE_STORAGE_CONTAINER").ok()?;
+    Some(BlobStore {
+        account,
+        container,
+        client: Client::new(),
+    })
+}
+
+impl BlobStore {
+    async fn token(&self) -> Result<String, ApiError> {
+        let response = self
+            .client
+            .get("http://169.254.169.254/metadata/identity/oauth2/token")
+            .header("Metadata", "true")
+            .query(&[
+                ("api-version", "2019-08-01"),
+                ("resource", "https://storage.azure.com/"),
+            ])
+            .send()
+            .await
+            .map_err(internal)?;
+        let body: Value = response
+            .error_for_status()
+            .map_err(internal)?
+            .json()
+            .await
+            .map_err(internal)?;
+        body["access_token"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| internal("managed identity response did not contain an access token"))
+    }
+
+    fn url(&self, code: &str) -> String {
+        format!(
+            "https://{}.blob.core.windows.net/{}/rooms/{}.json",
+            self.account, self.container, code
+        )
+    }
+
+    async fn get(&self, code: &str) -> Result<Option<Room>, ApiError> {
+        let token = self.token().await?;
+        let response = self
+            .client
+            .get(self.url(code))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-version", "2023-11-03")
+            .send()
+            .await
+            .map_err(internal)?;
+        if response.status() == HttpStatus::NOT_FOUND {
+            return Ok(None);
+        }
+        let bytes = response
+            .error_for_status()
+            .map_err(internal)?
+            .bytes()
+            .await
+            .map_err(internal)?;
+        serde_json::from_slice(&bytes).map(Some).map_err(internal)
+    }
+
+    async fn put(&self, room: &Room) -> Result<(), ApiError> {
+        let token = self.token().await?;
+        let body = serde_json::to_vec(room).map_err(internal)?;
+        self.client
+            .put(self.url(&room.code))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-version", "2023-11-03")
+            .header("x-ms-blob-type", "BlockBlob")
+            .body(body)
+            .send()
+            .await
+            .map_err(internal)?
+            .error_for_status()
+            .map_err(internal)?;
+        Ok(())
+    }
+}
+
+pub(crate) fn install_db_drivers() {
+    static DRIVERS: Once = Once::new();
+    DRIVERS.call_once(sqlx::any::install_default_drivers);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -111,8 +214,8 @@ fn view(room: &Room, token: Option<&str>) -> Value {
     let you = token.and_then(|t| room.players.iter().position(|p| p.token == t));
     json!({"code":room.code,"game":room.game,"status":room.status,"owner_id":room.owner_id,"players":room.players.iter().map(|p|json!({"id":p.id,"nickname":p.nickname})).collect::<Vec<_>>(),"game_state":room.game_state,"revision":room.revision,"you":you,"is_owner":you.map(|i|room.players[i].id==room.owner_id).unwrap_or(false)})
 }
-async fn load(db: &SqlitePool, code: &str) -> Result<Room, ApiError> {
-    let row = sqlx::query("SELECT state_json FROM rooms WHERE code = ?")
+async fn load_local(db: &AnyPool, code: &str) -> Result<Room, ApiError> {
+    let row = sqlx::query("SELECT state_json FROM rooms WHERE code = $1")
         .bind(code)
         .fetch_optional(db)
         .await
@@ -123,15 +226,49 @@ async fn load(db: &SqlitePool, code: &str) -> Result<Room, ApiError> {
         ))?;
     serde_json::from_str(row.get::<&str, _>(0)).map_err(internal)
 }
-async fn save(db: &SqlitePool, room: &Room) -> Result<(), ApiError> {
+pub(crate) fn now_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock before Unix epoch")
+        .as_secs() as i64
+}
+async fn save_local(db: &AnyPool, room: &Room) -> Result<(), ApiError> {
     let data = serde_json::to_string(room).map_err(internal)?;
-    sqlx::query("UPDATE rooms SET state_json=?, updated_at=unixepoch() WHERE code=?")
-        .bind(data)
+    let now = now_seconds();
+    sqlx::query(
+        "INSERT INTO rooms(code,state_json,created_at,updated_at) VALUES($1,$2,$3,$3) ON CONFLICT (code) DO UPDATE SET state_json=$2, updated_at=$3",
+    )
         .bind(&room.code)
+        .bind(data)
+        .bind(now)
         .execute(db)
         .await
         .map_err(internal)?;
     Ok(())
+}
+async fn load(s: &AppState, code: &str) -> Result<Room, ApiError> {
+    match load_local(&s.db, code).await {
+        Ok(room) => Ok(room),
+        Err(ApiError(StatusCode::NOT_FOUND, _)) => {
+            if let Some(blob) = &s.blob {
+                if let Some(room) = blob.get(code).await? {
+                    save_local(&s.db, &room).await?;
+                    return Ok(room);
+                }
+            }
+            Err(ApiError(
+                StatusCode::NOT_FOUND,
+                "That room was not found. Check the six-letter code.".into(),
+            ))
+        }
+        Err(error) => Err(error),
+    }
+}
+async fn save(s: &AppState, room: &Room) -> Result<(), ApiError> {
+    if let Some(blob) = &s.blob {
+        blob.put(room).await?;
+    }
+    save_local(&s.db, room).await
 }
 fn internal<E: std::fmt::Display>(e: E) -> ApiError {
     tracing::error!(error=%e,"request failed");
@@ -175,13 +312,20 @@ pub async fn create(
             revision: 0,
         };
         let data = serde_json::to_string(&room).map_err(internal)?;
-        let result = sqlx::query("INSERT OR IGNORE INTO rooms(code,state_json) VALUES(?,?)")
+        let now = now_seconds();
+        let result = sqlx::query(
+            "INSERT INTO rooms(code,state_json,created_at,updated_at) VALUES($1,$2,$3,$3) ON CONFLICT (code) DO NOTHING",
+        )
             .bind(&code)
             .bind(data)
+            .bind(now)
             .execute(&s.db)
             .await
             .map_err(internal)?;
         if result.rows_affected() == 1 {
+            if let Some(blob) = &s.blob {
+                blob.put(&room).await?;
+            }
             return Ok(Json(
                 json!({"room":view(&room,Some(&player.token)),"player_token":player.token}),
             ));
@@ -194,7 +338,7 @@ pub async fn get_room(
     Path(code): Path<String>,
     Query(q): Query<RoomQuery>,
 ) -> ApiResult<Value> {
-    let room = load(&s.db, &code.to_uppercase()).await?;
+    let room = load(&s, &code.to_uppercase()).await?;
     Ok(Json(view(&room, q.token.as_deref())))
 }
 pub async fn join(
@@ -204,7 +348,7 @@ pub async fn join(
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
-    let mut room = load(&s.db, &code.to_uppercase()).await?;
+    let mut room = load(&s, &code.to_uppercase()).await?;
     if room.status != RoomStatus::Lobby {
         return Err(bad("This game has already started."));
     }
@@ -227,7 +371,7 @@ pub async fn join(
     };
     room.players.push(p.clone());
     room.revision += 1;
-    save(&s.db, &room).await?;
+    save(&s, &room).await?;
     Ok(Json(
         json!({"room":view(&room,Some(&p.token)),"player_token":p.token}),
     ))
@@ -239,7 +383,7 @@ pub async fn start(
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
-    let mut room = load(&s.db, &code.to_uppercase()).await?;
+    let mut room = load(&s, &code.to_uppercase()).await?;
     let idx = room
         .players
         .iter()
@@ -267,7 +411,7 @@ pub async fn start(
     room.game_state = Some(GameState::new(&room.game, room.players.len()));
     room.status = RoomStatus::Playing;
     room.revision += 1;
-    save(&s.db, &room).await?;
+    save(&s, &room).await?;
     Ok(Json(view(&room, Some(&b.token))))
 }
 pub async fn action(
@@ -277,7 +421,7 @@ pub async fn action(
 ) -> ApiResult<Value> {
     let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
-    let mut room = load(&s.db, &code.to_uppercase()).await?;
+    let mut room = load(&s, &code.to_uppercase()).await?;
     if room.status != RoomStatus::Playing {
         return Err(bad("This game is not accepting moves."));
     }
@@ -298,17 +442,18 @@ pub async fn action(
         room.status = RoomStatus::Finished;
     }
     room.revision += 1;
-    save(&s.db, &room).await?;
+    save(&s, &room).await?;
     Ok(Json(view(&room, Some(&b.token))))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::any::AnyPoolOptions;
 
     async fn state() -> AppState {
-        let db = SqlitePoolOptions::new()
+        install_db_drivers();
+        let db = AnyPoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
             .await
@@ -316,6 +461,7 @@ mod tests {
         sqlx::migrate!().run(&db).await.unwrap();
         AppState {
             db,
+            blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
         }
@@ -417,7 +563,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         let url = format!("sqlite://{}?mode=rwc", path.display());
 
-        let first = SqlitePoolOptions::new()
+        let first = AnyPoolOptions::new()
             .max_connections(1)
             .connect(&url)
             .await
@@ -425,6 +571,7 @@ mod tests {
         sqlx::migrate!().run(&first).await.unwrap();
         let first_state = AppState {
             db: first.clone(),
+            blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
         };
@@ -441,13 +588,14 @@ mod tests {
         let code = room["room"]["code"].as_str().unwrap().to_owned();
         first.close().await;
 
-        let replacement = SqlitePoolOptions::new()
+        let replacement = AnyPoolOptions::new()
             .max_connections(1)
             .connect(&url)
             .await
             .unwrap();
         let replacement_state = AppState {
             db: replacement.clone(),
+            blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
         };
