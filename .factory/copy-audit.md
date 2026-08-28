@@ -1,4 +1,4 @@
-# Copy audit — 28 August 2026, polish 2
+# Copy audit — 28 August 2026, polish 3
 
 The first screen reads in one breath: “Play family games on separate phones.”
 The next action opens a two-player sample already in progress. At 390 × 844
@@ -52,7 +52,18 @@ and 1440 × 900, that action, its outcome, and all three facts are visible.
 | Create sample room link | 4 | Pass |
 | Copy Ravi’s sample link | 4 | Pass |
 | Open Ravi’s sample seat | 4 | Pass |
+| Try another sample | 3 | Pass |
+| Alex has two pawns on one shared path. | 9 | `race-gameplay` claim |
+| Select either pawn to move it three spaces. | 9 | `race-gameplay` claim |
+| Roll five dice, hold some, then choose a score row. | 10 | `dice-gameplay` claim |
+| Choose dice to hold before scoring. | 7 | Pass |
+| Threes recorded: 6 points. | 5 | `dice-gameplay` claim result |
+| Sample room ended | 3 | Pass |
+| Make a new sample room | 5 | Pass |
+| That sample room has expired. Create a new sample link. | 10 | Actionable recovery: pass |
 
+The README addition, “The shared sample workspace stays apart from real rooms,”
+has nine words and is covered by `demo-isolated` and `room-link-resume`.
 No visitor-facing sentence exceeds 22 words. No audited sentence contains a
 banned marketing term.
 

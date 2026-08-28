@@ -63,6 +63,21 @@ test("browser Back restores route title, announcement, scroll, and h1 focus", as
   expect(await page.evaluate(() => scrollY)).toBe(0);
 });
 
+test("shared demo settles with focus and an announcement on both board and recovery routes", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Create sample room link" }).click();
+  await page.waitForURL("**/demo/*");
+  await expect(page.getByRole("heading", { name: "Make a Square" })).toBeFocused();
+  await expect(page.locator("#route-status")).toContainText("Demo — Kitchen Table");
+
+  await page.evaluate(() => {
+    history.pushState({}, "", "/demo/ZZZZZZ");
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByRole("heading", { name: "Make a new sample room" })).toBeFocused();
+  await expect(page.locator("#route-status")).toContainText("Make a new sample room");
+});
+
 test("routes expose unique metadata and a useful HTTP 404", async ({ page, request }) => {
   for (const [path, title] of [["/", "Kitchen Table — family games on phones"], ["/demo", "Demo — Kitchen Table"], ["/privacy", "Privacy — Kitchen Table"], ["/terms", "Terms — Kitchen Table"]]) {
     await page.goto(path);
@@ -78,6 +93,12 @@ test("routes expose unique metadata and a useful HTTP 404", async ({ page, reque
   await expect(page.getByRole("heading", { name: "This table is not here" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Choose a game" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Join a room" })).toBeVisible();
+});
+
+test("room routes keep Kitchen Table first in their document title", async ({ page }) => {
+  await page.goto("/room/ABC123");
+  await expect(page).toHaveTitle("Kitchen Table — shared room ABC123");
+  await expect(page.getByRole("heading", { name: "We couldn’t find that room" })).toBeVisible();
 });
 
 test("skip link moves keyboard focus to main", async ({ page }) => {

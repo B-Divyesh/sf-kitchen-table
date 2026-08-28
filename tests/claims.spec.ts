@@ -88,33 +88,69 @@ test("@claim:three-games lists the three playable game choices", async ({ page }
   }
 });
 
-test("@claim:room-link-resume shares an isolated sample board between phones and restores it", async ({ browser }) => {
-  const hostContext = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "room-host" } });
-  const guestContext = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": "room-guest" } });
-  const host = await hostContext.newPage();
-  const productionRequests: string[] = [];
-  host.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/rooms")) productionRequests.push(request.url()); });
-  await host.goto("/demo");
-  await host.getByRole("button", { name: "Create sample room link" }).click();
-  await host.waitForURL("**/demo/*");
-  const guestUrl = await host.getByRole("link", { name: "Open Ravi’s sample seat" }).getAttribute("href");
-  expect(guestUrl).toBeTruthy();
+test("@claim:race-gameplay moves either of two sample pawns along one shared path", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Try Lantern Race sample" }).click();
+  await expect(page.getByRole("heading", { name: "Lantern Race" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Shared path with Alex’s two selectable pawns" })).toBeVisible();
+  await page.getByRole("button", { name: "Move Alex’s first pawn" }).click();
+  await expect(page.getByText("Alex’s first pawn: space 7.")).toBeVisible();
+  await page.getByRole("button", { name: "Move Alex’s second pawn" }).click();
+  await expect(page.getByText("Alex’s second pawn: space 12.")).toBeVisible();
+});
 
-  const guest = await guestContext.newPage();
-  guest.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/rooms")) productionRequests.push(request.url()); });
-  await guest.goto(guestUrl!);
-  await expect(guest.getByText("Alex", { exact: true })).toBeVisible();
-  await expect(guest.getByText("Ravi", { exact: true })).toBeVisible();
-  const before = await guest.locator(".demo-line").count();
-  await host.locator("[data-demo-line]:not([disabled])").first().click();
-  await guest.reload();
-  await expect(guest.locator(".demo-line")).toHaveCount(before + 1);
-  expect(productionRequests).toEqual([]);
-  for (const context of [hostContext, guestContext]) {
-    expect(await context.pages()[0].evaluate(() => Object.keys(localStorage).some(key => key.startsWith("kt:")))).toBeFalsy();
+test("@claim:dots-gameplay claims a completed square and keeps the turn", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Draw sample line 3" }).click();
+  await page.getByRole("button", { name: "Draw sample line 7" }).click();
+  await page.getByRole("button", { name: "Close sample square" }).click();
+  await expect(page.locator(".score-row").filter({ hasText: "Alex" }).locator("strong")).toHaveText("3");
+  await expect(page.getByText("Alex’s turn")).toBeVisible();
+});
+
+test("@claim:dice-gameplay rolls five dice, holds one, and records a score", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Try High Five sample" }).click();
+  await expect(page.getByRole("group", { name: "Five sample dice" }).getByRole("button")).toHaveCount(5);
+  await page.getByRole("button", { name: /Roll five dice/ }).click();
+  await page.getByRole("button", { name: "Hold die 1" }).click();
+  await page.getByRole("button", { name: "Choose threes score row" }).click();
+  await expect(page.getByText("Threes recorded: 6 points.")).toBeVisible();
+});
+
+test("@claim:room-link-resume shares an isolated sample board between phones and restores it", async ({ browser }) => {
+  test.setTimeout(60_000);
+  const productionRequests: string[] = [];
+  // Repeating fresh two-phone rooms makes the deployment check exercise more
+  // than one ingress request. On a scaled service, a sample must reopen from
+  // any replica rather than the process that created it.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const hostContext = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `room-host-${attempt}` } });
+    const guestContext = await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `room-guest-${attempt}` } });
+    const host = await hostContext.newPage();
+    host.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/rooms")) productionRequests.push(request.url()); });
+    await host.goto("/demo");
+    await host.getByRole("button", { name: "Create sample room link" }).click();
+    await host.waitForURL("**/demo/*");
+    const guestUrl = await host.getByRole("link", { name: "Open Ravi’s sample seat" }).getAttribute("href");
+    expect(guestUrl).toBeTruthy();
+
+    const guest = await guestContext.newPage();
+    guest.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/rooms")) productionRequests.push(request.url()); });
+    await guest.goto(guestUrl!);
+    await expect(guest.getByText("Alex", { exact: true })).toBeVisible();
+    await expect(guest.getByText("Ravi", { exact: true })).toBeVisible();
+    const before = await guest.locator(".demo-line").count();
+    await host.locator("[data-demo-line]:not([disabled])").first().click();
+    await expect(host.locator(".demo-line")).toHaveCount(before + 1);
+    await guest.reload();
+    await expect(guest.locator(".demo-line")).toHaveCount(before + 1);
+    for (const context of [hostContext, guestContext]) {
+      expect(await context.pages()[0].evaluate(() => Object.keys(localStorage).some(key => key.startsWith("kt:")))).toBeFalsy();
+      await context.close();
+    }
   }
-  await hostContext.close();
-  await guestContext.close();
+  expect(productionRequests).toEqual([]);
 });
 
 test("@claim:no-strangers-or-payments has no external traffic or prohibited surfaces", async ({ page }) => {

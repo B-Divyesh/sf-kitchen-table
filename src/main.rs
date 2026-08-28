@@ -49,6 +49,11 @@ async fn main() {
         .execute(&db)
         .await
         .expect("expire inactive rooms");
+    sqlx::query("DELETE FROM demo_rooms WHERE created_at < $1")
+        .bind(api::now_seconds() - 86_400)
+        .execute(&db)
+        .await
+        .expect("expire sample rooms");
     let cleanup_db = db.clone();
     tokio::spawn(async move {
         let day = tokio::time::Duration::from_secs(86_400);
@@ -62,6 +67,13 @@ async fn main() {
             {
                 tracing::warn!(%error, "inactive room cleanup failed");
             }
+            if let Err(error) = sqlx::query("DELETE FROM demo_rooms WHERE created_at < $1")
+                .bind(api::now_seconds() - 86_400)
+                .execute(&cleanup_db)
+                .await
+            {
+                tracing::warn!(%error, "sample room cleanup failed");
+            }
         }
     });
     let state = api::AppState {
@@ -69,15 +81,31 @@ async fn main() {
         blob: api::blob_store_from_env(),
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
         write_lock: Arc::new(Mutex::new(())),
+        demo_write_lock: Arc::new(Mutex::new(())),
         rate_limits: api::rate_limits(),
-        demo_rooms: api::demo_rooms(),
     };
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
     let addr = SocketAddr::from_str(&format!("0.0.0.0:{port}")).unwrap();
-    tracing::info!(%addr, database = if std::env::var_os("DATABASE_URL").is_some() {"supplied"} else {"generated default"}, blob = if state.blob.is_some() {"supplied"} else {"local default"}, "Kitchen Table listening");
+    let database_source = if std::env::var_os("DATABASE_URL").is_some() {
+        "supplied"
+    } else {
+        "generated default"
+    };
+    let blob_source = if state.blob.is_some() {
+        if std::env::var_os("AZURE_STORAGE_ACCOUNT").is_some()
+            || std::env::var_os("AZURE_STORAGE_CONTAINER").is_some()
+        {
+            "supplied"
+        } else {
+            "managed identity default"
+        }
+    } else {
+        "local SQLite fallback"
+    };
+    tracing::info!(%addr, database = database_source, blob = blob_source, "Kitchen Table listening");
     let app = app_router(state, "frontend/dist");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)
@@ -266,8 +294,8 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: api::rate_limits(),
-            demo_rooms: api::demo_rooms(),
         }
     }
 
@@ -289,7 +317,13 @@ mod tests {
     async fn direct_spa_routes_return_200_and_unknown_paths_do_not() {
         let assets = fixture_dir();
         let app = app_router(state("sqlite::memory:").await, &assets);
-        for path in ["/demo", "/demo/ABC123", "/room/ABC123", "/privacy", "/terms"] {
+        for path in [
+            "/demo",
+            "/demo/ABC123",
+            "/room/ABC123",
+            "/privacy",
+            "/terms",
+        ] {
             let response = app
                 .clone()
                 .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())

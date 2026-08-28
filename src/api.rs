@@ -23,19 +23,15 @@ pub struct AppState {
     pub blob: Option<BlobStore>,
     pub build_sha: String,
     pub write_lock: Arc<Mutex<()>>,
+    pub demo_write_lock: Arc<Mutex<()>>,
     pub rate_limits: Arc<Mutex<HashMap<String, (Instant, u32)>>>,
-    pub demo_rooms: Arc<Mutex<HashMap<String, DemoRoom>>>,
 }
 
 pub fn rate_limits() -> Arc<Mutex<HashMap<String, (Instant, u32)>>> {
     Arc::new(Mutex::new(HashMap::new()))
 }
 
-pub fn demo_rooms() -> Arc<Mutex<HashMap<String, DemoRoom>>> {
-    Arc::new(Mutex::new(HashMap::new()))
-}
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct DemoRoom {
     id: String,
     host_token: String,
@@ -44,7 +40,7 @@ pub struct DemoRoom {
     lines: Vec<u8>,
     scores: [u8; 2],
     revision: u64,
-    created: Instant,
+    created_at: i64,
 }
 
 #[derive(Deserialize)]
@@ -75,19 +71,28 @@ struct VersionedRoom {
     etag: Option<String>,
 }
 
+#[derive(Clone)]
+struct VersionedDemoRoom {
+    room: DemoRoom,
+    etag: Option<String>,
+}
+
 pub fn blob_store_from_env() -> Option<BlobStore> {
     // A Docker image remains useful on a laptop with no Azure metadata
     // endpoint: it falls back to the local SQLite store there. Container Apps
-    // injects IDENTITY_ENDPOINT for its assigned identity, which turns on the
-    // authoritative Blob store automatically. AZURE_ENABLE_BLOB is useful for
-    // explicit Azure-host integration tests.
+    // injects IDENTITY_ENDPOINT for its assigned identity. The factory's
+    // Kitchen Table container is known by that identity, so it must not also
+    // depend on non-PORT app settings to find its isolated room container.
+    // Explicit values remain available for local Azure integration checks.
     if std::env::var_os("IDENTITY_ENDPOINT").is_none()
         && std::env::var_os("AZURE_ENABLE_BLOB").is_none()
     {
         return None;
     }
-    let account = std::env::var("AZURE_STORAGE_ACCOUNT").ok()?;
-    let container = std::env::var("AZURE_STORAGE_CONTAINER").ok()?;
+    let account = std::env::var("AZURE_STORAGE_ACCOUNT")
+        .unwrap_or_else(|_| "sociobotblob".into());
+    let container = std::env::var("AZURE_STORAGE_CONTAINER")
+        .unwrap_or_else(|_| "kitchen-table-rooms".into());
     Some(BlobStore {
         account,
         container,
@@ -144,6 +149,16 @@ impl BlobStore {
         )
     }
 
+    /// Demo records deliberately live under their own Blob prefix. They share
+    /// the same durable service boundary as real rooms, but production room
+    /// endpoints never read this prefix and sample records expire after a day.
+    fn demo_url(&self, id: &str) -> String {
+        format!(
+            "https://{}.blob.core.windows.net/{}/demo/{}.json",
+            self.account, self.container, id
+        )
+    }
+
     async fn get(&self, code: &str) -> Result<Option<VersionedRoom>, ApiError> {
         let token = self.token().await?;
         let response = self
@@ -190,6 +205,74 @@ impl BlobStore {
         let response = request.send().await.map_err(internal)?;
         if response.status() == HttpStatus::PRECONDITION_FAILED {
             return Err(conflict());
+        }
+        response.error_for_status().map_err(internal)?;
+        Ok(())
+    }
+
+    async fn get_demo(&self, id: &str) -> Result<Option<VersionedDemoRoom>, ApiError> {
+        let token = self.token().await?;
+        let response = self
+            .client
+            .get(self.demo_url(id))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-date", httpdate::fmt_http_date(SystemTime::now()))
+            .header("x-ms-version", "2023-11-03")
+            .send()
+            .await
+            .map_err(internal)?;
+        if response.status() == HttpStatus::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = response.error_for_status().map_err(internal)?;
+        let etag = response
+            .headers()
+            .get("etag")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        let bytes = response.bytes().await.map_err(internal)?;
+        let room = serde_json::from_slice(&bytes).map_err(internal)?;
+        Ok(Some(VersionedDemoRoom { room, etag }))
+    }
+
+    async fn put_demo(&self, room: &DemoRoom, etag: Option<&str>) -> Result<(), ApiError> {
+        let token = self.token().await?;
+        let body = serde_json::to_vec(room).map_err(internal)?;
+        let request = self
+            .client
+            .put(self.demo_url(&room.id))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-date", httpdate::fmt_http_date(SystemTime::now()))
+            .header("x-ms-version", "2023-11-03")
+            .header("x-ms-blob-type", "BlockBlob")
+            .body(body);
+        let request = match etag {
+            Some(etag) => request.header("if-match", etag),
+            None => request.header("if-none-match", "*"),
+        };
+        let response = request.send().await.map_err(internal)?;
+        if response.status() == HttpStatus::PRECONDITION_FAILED {
+            return Err(conflict());
+        }
+        response.error_for_status().map_err(internal)?;
+        Ok(())
+    }
+
+    async fn delete_demo(&self, id: &str, etag: Option<&str>) -> Result<(), ApiError> {
+        let token = self.token().await?;
+        let request = self
+            .client
+            .delete(self.demo_url(id))
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-ms-date", httpdate::fmt_http_date(SystemTime::now()))
+            .header("x-ms-version", "2023-11-03");
+        let request = match etag {
+            Some(value) => request.header("if-match", value),
+            None => request,
+        };
+        let response = request.send().await.map_err(internal)?;
+        if response.status() == HttpStatus::NOT_FOUND {
+            return Ok(());
         }
         response.error_for_status().map_err(internal)?;
         Ok(())
@@ -334,6 +417,99 @@ async fn save_local(db: &AnyPool, room: &Room) -> Result<(), ApiError> {
         .map_err(internal)?;
     Ok(())
 }
+
+async fn load_demo_local(db: &AnyPool, id: &str) -> Result<Option<DemoRoom>, ApiError> {
+    let row = sqlx::query("SELECT state_json FROM demo_rooms WHERE id = $1")
+        .bind(id)
+        .fetch_optional(db)
+        .await
+        .map_err(internal)?;
+    row.map(|record| serde_json::from_str(record.get::<&str, _>(0)).map_err(internal))
+        .transpose()
+}
+
+async fn save_demo_local(db: &AnyPool, room: &DemoRoom) -> Result<(), ApiError> {
+    let data = serde_json::to_string(room).map_err(internal)?;
+    let now = now_seconds();
+    sqlx::query(
+        "INSERT INTO demo_rooms(id,state_json,created_at,updated_at) VALUES($1,$2,$3,$4) ON CONFLICT (id) DO UPDATE SET state_json=$2, updated_at=$4",
+    )
+        .bind(&room.id)
+        .bind(data)
+        .bind(room.created_at)
+        .bind(now)
+        .execute(db)
+        .await
+        .map_err(internal)?;
+    Ok(())
+}
+
+async fn create_demo_local(db: &AnyPool, room: &DemoRoom) -> Result<bool, ApiError> {
+    let data = serde_json::to_string(room).map_err(internal)?;
+    let result = sqlx::query(
+        "INSERT INTO demo_rooms(id,state_json,created_at,updated_at) VALUES($1,$2,$3,$3) ON CONFLICT (id) DO NOTHING",
+    )
+        .bind(&room.id)
+        .bind(data)
+        .bind(room.created_at)
+        .execute(db)
+        .await
+        .map_err(internal)?;
+    Ok(result.rows_affected() == 1)
+}
+
+async fn delete_demo_local(db: &AnyPool, id: &str) -> Result<(), ApiError> {
+    sqlx::query("DELETE FROM demo_rooms WHERE id = $1")
+        .bind(id)
+        .execute(db)
+        .await
+        .map_err(internal)?;
+    Ok(())
+}
+
+fn demo_expired(room: &DemoRoom) -> bool {
+    now_seconds().saturating_sub(room.created_at) >= 86_400
+}
+
+async fn load_demo_versioned(
+    s: &AppState,
+    id: &str,
+) -> Result<Option<VersionedDemoRoom>, ApiError> {
+    // The deployed app uses the same managed-identity Blob boundary that
+    // makes real rooms replica-safe. A local SQLite demo table keeps the
+    // container useful offline without ever mixing sample rows with rooms.
+    let loaded = if let Some(blob) = &s.blob {
+        match blob.get_demo(id).await? {
+            Some(versioned) => {
+                save_demo_local(&s.db, &versioned.room).await?;
+                Some(versioned)
+            }
+            None => None,
+        }
+    } else {
+        load_demo_local(&s.db, id)
+            .await?
+            .map(|room| VersionedDemoRoom { room, etag: None })
+    };
+    let Some(versioned) = loaded else {
+        return Ok(None);
+    };
+    if !demo_expired(&versioned.room) {
+        return Ok(Some(versioned));
+    }
+    if let Some(blob) = &s.blob {
+        let _ = blob.delete_demo(id, versioned.etag.as_deref()).await;
+    }
+    delete_demo_local(&s.db, id).await?;
+    Ok(None)
+}
+
+async fn save_demo(s: &AppState, room: &DemoRoom, etag: Option<&str>) -> Result<(), ApiError> {
+    if let Some(blob) = &s.blob {
+        blob.put_demo(room, etag).await?;
+    }
+    save_demo_local(&s.db, room).await
+}
 async fn load_versioned(s: &AppState, code: &str) -> Result<VersionedRoom, ApiError> {
     // Production must not consult a replica-local cache first. It may be
     // stale as soon as another phone lands on another replica. Blob is the
@@ -393,23 +569,37 @@ fn demo_view(room: &DemoRoom, token: Option<&str>) -> Value {
 }
 
 pub async fn create_demo(State(s): State<AppState>) -> ApiResult<Value> {
-    let mut rooms = s.demo_rooms.lock().await;
-    rooms.retain(|_, room| room.created.elapsed().as_secs() < 86_400);
-    let id = random_code();
-    let room = DemoRoom {
-        id: id.clone(),
-        host_token: random_token(32),
-        guest_token: random_token(32),
-        turn: 0,
-        lines: vec![0, 1, 3, 5, 7, 8],
-        scores: [2, 1],
-        revision: 0,
-        created: Instant::now(),
-    };
-    let token = room.host_token.clone();
-    let view = demo_view(&room, Some(&token));
-    rooms.insert(id, room);
-    Ok(Json(json!({"room": view, "player_token": token})))
+    let _write = s.demo_write_lock.lock().await;
+    for _ in 0..8 {
+        let id = random_code();
+        let room = DemoRoom {
+            id: id.clone(),
+            host_token: random_token(32),
+            guest_token: random_token(32),
+            turn: 0,
+            lines: vec![0, 1, 3, 5, 7, 8],
+            scores: [2, 1],
+            revision: 0,
+            created_at: now_seconds(),
+        };
+        let created = if let Some(blob) = &s.blob {
+            match blob.put_demo(&room, None).await {
+                Ok(()) => true,
+                Err(error) if is_conflict(&error) => false,
+                Err(error) => return Err(error),
+            }
+        } else {
+            create_demo_local(&s.db, &room).await?
+        };
+        if created {
+            save_demo_local(&s.db, &room).await?;
+            let token = room.host_token.clone();
+            return Ok(Json(
+                json!({"room": demo_view(&room, Some(&token)), "player_token": token}),
+            ));
+        }
+    }
+    Err(internal("could not allocate a sample room code"))
 }
 
 pub async fn get_demo(
@@ -417,23 +607,23 @@ pub async fn get_demo(
     Path(id): Path<String>,
     Query(query): Query<DemoQuery>,
 ) -> ApiResult<Value> {
-    let rooms = s.demo_rooms.lock().await;
-    let room = rooms.get(&id.to_uppercase()).ok_or(ApiError(
+    let id = id.to_uppercase();
+    let room = load_demo_versioned(&s, &id).await?.ok_or(ApiError(
         StatusCode::NOT_FOUND,
         "That sample room has expired. Create a new sample link.".into(),
     ))?;
-    Ok(Json(demo_view(room, query.token.as_deref())))
+    Ok(Json(demo_view(&room.room, query.token.as_deref())))
 }
 
 pub async fn join_demo(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Value> {
-    let rooms = s.demo_rooms.lock().await;
-    let room = rooms.get(&id.to_uppercase()).ok_or(ApiError(
+    let id = id.to_uppercase();
+    let room = load_demo_versioned(&s, &id).await?.ok_or(ApiError(
         StatusCode::NOT_FOUND,
         "That sample room has expired. Create a new sample link.".into(),
     ))?;
     Ok(Json(json!({
-        "room": demo_view(room, Some(&room.guest_token)),
-        "player_token": room.guest_token
+        "room": demo_view(&room.room, Some(&room.room.guest_token)),
+        "player_token": room.room.guest_token
     })))
 }
 
@@ -443,41 +633,62 @@ pub async fn act_demo(
     body: Result<Json<DemoActionBody>, JsonRejection>,
 ) -> ApiResult<Value> {
     let Json(body) = body.map_err(invalid_json)?;
-    let mut rooms = s.demo_rooms.lock().await;
-    let room = rooms.get_mut(&id.to_uppercase()).ok_or(ApiError(
-        StatusCode::NOT_FOUND,
-        "That sample room has expired. Create a new sample link.".into(),
-    ))?;
-    let player = if body.token == room.host_token {
-        0
-    } else if body.token == room.guest_token {
-        1
-    } else {
-        return Err(ApiError(StatusCode::UNAUTHORIZED, "That sample seat is not available.".into()));
-    };
-    if player != room.turn {
-        return Err(bad("Wait for the other sample player."));
+    let id = id.to_uppercase();
+    let _write = s.demo_write_lock.lock().await;
+    for _ in 0..8 {
+        let mut versioned = load_demo_versioned(&s, &id).await?.ok_or(ApiError(
+            StatusCode::NOT_FOUND,
+            "That sample room has expired. Create a new sample link.".into(),
+        ))?;
+        let room = &mut versioned.room;
+        let player = if body.token == room.host_token {
+            0
+        } else if body.token == room.guest_token {
+            1
+        } else {
+            return Err(ApiError(
+                StatusCode::UNAUTHORIZED,
+                "That sample seat is not available.".into(),
+            ));
+        };
+        if player != room.turn {
+            return Err(bad("Wait for the other sample player."));
+        }
+        if body.line > 8 || room.lines.contains(&body.line) {
+            return Err(bad("Choose an open sample line."));
+        }
+        room.lines.push(body.line);
+        room.turn = 1 - room.turn;
+        room.revision += 1;
+        match save_demo(&s, room, versioned.etag.as_deref()).await {
+            Ok(()) => return Ok(Json(demo_view(room, Some(&body.token)))),
+            Err(error) if is_conflict(&error) => continue,
+            Err(error) => return Err(error),
+        }
     }
-    if body.line > 8 || room.lines.contains(&body.line) {
-        return Err(bad("Choose an open sample line."));
-    }
-    room.lines.push(body.line);
-    room.turn = 1 - room.turn;
-    room.revision += 1;
-    Ok(Json(demo_view(room, Some(&body.token))))
+    Err(conflict())
 }
 
 pub async fn reset_demo(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Value> {
-    let mut rooms = s.demo_rooms.lock().await;
-    let room = rooms.get_mut(&id.to_uppercase()).ok_or(ApiError(
-        StatusCode::NOT_FOUND,
-        "That sample room has expired. Create a new sample link.".into(),
-    ))?;
-    room.turn = 0;
-    room.lines = vec![0, 1, 3, 5, 7, 8];
-    room.scores = [2, 1];
-    room.revision += 1;
-    Ok(Json(demo_view(room, None)))
+    let id = id.to_uppercase();
+    let _write = s.demo_write_lock.lock().await;
+    for _ in 0..8 {
+        let mut versioned = load_demo_versioned(&s, &id).await?.ok_or(ApiError(
+            StatusCode::NOT_FOUND,
+            "That sample room has expired. Create a new sample link.".into(),
+        ))?;
+        let room = &mut versioned.room;
+        room.turn = 0;
+        room.lines = vec![0, 1, 3, 5, 7, 8];
+        room.scores = [2, 1];
+        room.revision += 1;
+        match save_demo(&s, room, versioned.etag.as_deref()).await {
+            Ok(()) => return Ok(Json(demo_view(room, None))),
+            Err(error) if is_conflict(&error) => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(conflict())
 }
 pub async fn not_found() -> ApiError {
     ApiError(
@@ -692,8 +903,8 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
-            demo_rooms: demo_rooms(),
         }
     }
 
@@ -719,7 +930,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn demo_rooms_are_memory_only_and_public_views_omit_tokens() {
+    async fn demo_rooms_use_an_isolated_store_and_public_views_omit_tokens() {
         let state = state().await;
         let created = create_demo(State(state.clone())).await.unwrap().0;
         let id = created["room"]["id"].as_str().unwrap().to_owned();
@@ -738,7 +949,18 @@ mod tests {
             .fetch_one(&state.db)
             .await
             .unwrap();
-        assert_eq!(stored_rooms, 0, "a demo must not create a production room row");
+        assert_eq!(
+            stored_rooms, 0,
+            "a demo must not create a production room row"
+        );
+        let stored_demo_rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM demo_rooms")
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+        assert_eq!(
+            stored_demo_rooms, 1,
+            "the sample workspace has its own table"
+        );
         let moved = act_demo(
             State(state),
             Path(id),
@@ -749,6 +971,85 @@ mod tests {
         .0;
         assert_eq!(moved["turn"], 1);
         assert_eq!(moved["revision"], 1);
+    }
+
+    #[tokio::test]
+    async fn separate_replicas_share_an_isolated_demo_room_and_keep_it_out_of_rooms() {
+        install_db_drivers();
+        let path = std::env::temp_dir().join(format!(
+            "kitchen-table-shared-demo-{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let url = format!("sqlite://{}?mode=rwc", path.display());
+        let first_db = AnyPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&first_db).await.unwrap();
+        let second_db = AnyPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        let first = AppState {
+            db: first_db.clone(),
+            blob: None,
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
+        };
+        let second = AppState {
+            db: second_db.clone(),
+            blob: None,
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
+            rate_limits: rate_limits(),
+        };
+
+        let created = create_demo(State(first.clone())).await.unwrap().0;
+        let id = created["room"]["id"].as_str().unwrap().to_owned();
+        let host_token = created["player_token"].as_str().unwrap().to_owned();
+        let guest = join_demo(State(second.clone()), Path(id.clone()))
+            .await
+            .unwrap()
+            .0;
+        let guest_token = guest["player_token"].as_str().unwrap().to_owned();
+
+        let moved = act_demo(
+            State(first),
+            Path(id.clone()),
+            Ok(Json(DemoActionBody {
+                token: host_token,
+                line: 2,
+            })),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(moved["revision"], 1);
+        let reloaded = get_demo(
+            State(second.clone()),
+            Path(id),
+            Query(DemoQuery {
+                token: Some(guest_token),
+            }),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(reloaded["revision"], 1);
+        let real_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
+            .fetch_one(&second.db)
+            .await
+            .unwrap();
+        assert_eq!(real_rows, 0);
+        first_db.close().await;
+        second_db.close().await;
+        let _ = std::fs::remove_file(path);
     }
 
     #[tokio::test]
@@ -838,8 +1139,8 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
-            demo_rooms: demo_rooms(),
         };
         let room = create(
             State(first_state),
@@ -864,8 +1165,8 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
-            demo_rooms: demo_rooms(),
         };
         let loaded = get_room(
             State(replacement_state),
@@ -906,16 +1207,16 @@ mod tests {
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
-            demo_rooms: demo_rooms(),
         };
         let second = AppState {
             db: second_db.clone(),
             blob: None,
             build_sha: "test".into(),
             write_lock: Arc::new(Mutex::new(())),
+            demo_write_lock: Arc::new(Mutex::new(())),
             rate_limits: rate_limits(),
-            demo_rooms: demo_rooms(),
         };
 
         let created = create(

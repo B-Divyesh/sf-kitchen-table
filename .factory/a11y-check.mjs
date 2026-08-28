@@ -48,6 +48,13 @@ const home = await context.newPage();
 await home.goto(origin, { waitUntil: "networkidle" });
 await audit(home, "home-mobile");
 
+for (const [name, path] of [["demo-dots-mobile", "/demo"], ["demo-race-mobile", "/demo?game=race"], ["demo-dice-mobile", "/demo?game=dice"]]) {
+  const page = await context.newPage();
+  await page.goto(`${origin}${path}`, { waitUntil: "networkidle" });
+  await audit(page, name);
+  await page.close();
+}
+
 for (const game of ["race", "dots", "dice"]) {
   const seat = await room(game);
   const page = await context.newPage();
