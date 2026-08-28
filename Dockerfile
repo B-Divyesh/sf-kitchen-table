@@ -21,9 +21,11 @@ COPY --from=server /app/target/release/kitchen-table /usr/local/bin/kitchen-tabl
 COPY --from=web /app/frontend/dist ./frontend/dist
 RUN mkdir -p /data && chown -R table:table /app /data
 USER table
-# The deployment injects the exact source commit with --build-arg BUILD_SHA.
-# A local image remains identifiable without claiming to be a release.
+# The factory supplies all three identities from the source tarball (which has
+# no .git directory). BUILD_SHA is what the health endpoint exposes.
 ARG BUILD_SHA=dev
+ARG GIT_SHA=
+ARG SOURCE_COMMIT=
 ENV BUILD_SHA=$BUILD_SHA
 ENV PORT=8080
 EXPOSE 8080
