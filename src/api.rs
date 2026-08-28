@@ -57,12 +57,15 @@ impl BlobStore {
             std::env::var("IDENTITY_ENDPOINT"),
             std::env::var("IDENTITY_HEADER"),
         ) {
-            self.client
+            let mut request = self
+                .client
                 .get(endpoint)
                 .header("X-IDENTITY-HEADER", header)
-                .query(&parameters)
-                .send()
-                .await
+                .query(&parameters);
+            if let Ok(client_id) = std::env::var("AZURE_CLIENT_ID") {
+                request = request.query(&[("client_id", client_id)]);
+            }
+            request.send().await
         } else {
             self.client
                 .get("http://169.254.169.254/metadata/identity/oauth2/token")
