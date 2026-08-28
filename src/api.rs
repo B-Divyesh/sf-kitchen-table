@@ -1,6 +1,6 @@
 use crate::game::{GameKind, GameState};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{rejection::JsonRejection, Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -77,6 +77,12 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 fn bad(s: impl Into<String>) -> ApiError {
     ApiError(StatusCode::BAD_REQUEST, s.into())
 }
+/// Keep JSON parse failures in the same small, actionable API vocabulary as
+/// validation failures. Axum's default rejection includes framework details
+/// (and used to leak a 422 response for an unknown game enum).
+fn invalid_json(_: JsonRejection) -> ApiError {
+    bad("The request body was not valid. Check the game and try again.")
+}
 fn clean_name(raw: &str) -> Result<String, ApiError> {
     let s = raw.trim();
     if s.chars().count() < 1 || s.chars().count() > 20 {
@@ -144,7 +150,11 @@ pub async fn not_found() -> ApiError {
         "That API route does not exist.".into(),
     )
 }
-pub async fn create(State(s): State<AppState>, Json(b): Json<CreateBody>) -> ApiResult<Value> {
+pub async fn create(
+    State(s): State<AppState>,
+    body: Result<Json<CreateBody>, JsonRejection>,
+) -> ApiResult<Value> {
+    let Json(b) = body.map_err(invalid_json)?;
     let nickname = clean_name(&b.nickname)?;
     let (_, max) = b.game.players();
     let _ = max;
@@ -190,8 +200,9 @@ pub async fn get_room(
 pub async fn join(
     State(s): State<AppState>,
     Path(code): Path<String>,
-    Json(b): Json<JoinBody>,
+    body: Result<Json<JoinBody>, JsonRejection>,
 ) -> ApiResult<Value> {
+    let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
     let mut room = load(&s.db, &code.to_uppercase()).await?;
     if room.status != RoomStatus::Lobby {
@@ -224,8 +235,9 @@ pub async fn join(
 pub async fn start(
     State(s): State<AppState>,
     Path(code): Path<String>,
-    Json(b): Json<TokenBody>,
+    body: Result<Json<TokenBody>, JsonRejection>,
 ) -> ApiResult<Value> {
+    let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
     let mut room = load(&s.db, &code.to_uppercase()).await?;
     let idx = room
@@ -261,8 +273,9 @@ pub async fn start(
 pub async fn action(
     State(s): State<AppState>,
     Path(code): Path<String>,
-    Json(b): Json<ActionBody>,
+    body: Result<Json<ActionBody>, JsonRejection>,
 ) -> ApiResult<Value> {
+    let Json(b) = body.map_err(invalid_json)?;
     let _write = s.write_lock.lock().await;
     let mut room = load(&s.db, &code.to_uppercase()).await?;
     if room.status != RoomStatus::Playing {
@@ -323,7 +336,10 @@ mod tests {
         let response = health(State(state)).await.0;
 
         assert_eq!(response["status"], "ok");
-        assert_eq!(response["build_sha"], "830138fc4c0e5ece8448a31b1e989b8f4625a9ce");
+        assert_eq!(
+            response["build_sha"],
+            "830138fc4c0e5ece8448a31b1e989b8f4625a9ce"
+        );
     }
 
     #[tokio::test]
@@ -331,10 +347,10 @@ mod tests {
         let state = state().await;
         let created = create(
             State(state.clone()),
-            Json(CreateBody {
+            Ok(Json(CreateBody {
                 game: GameKind::Dots,
                 nickname: "Mum".into(),
-            }),
+            })),
         )
         .await
         .unwrap()
@@ -356,9 +372,9 @@ mod tests {
         let joined = join(
             State(state.clone()),
             Path(code.clone()),
-            Json(JoinBody {
+            Ok(Json(JoinBody {
                 nickname: "Kid".into(),
-            }),
+            })),
         )
         .await
         .unwrap()
@@ -368,9 +384,9 @@ mod tests {
         let started = start(
             State(state.clone()),
             Path(code.clone()),
-            Json(TokenBody {
+            Ok(Json(TokenBody {
                 token: host_token.clone(),
-            }),
+            })),
         )
         .await
         .unwrap()
@@ -380,15 +396,71 @@ mod tests {
         let moved = action(
             State(state),
             Path(code),
-            Json(ActionBody {
+            Ok(Json(ActionBody {
                 token: host_token,
                 action: json!({"type":"line","axis":"h","index":0}),
-            }),
+            })),
         )
         .await
         .unwrap()
         .0;
         assert_eq!(moved["revision"], 3);
         assert_eq!(moved["game_state"]["turn"], 1);
+    }
+
+    #[tokio::test]
+    async fn a_room_survives_a_process_replacement_when_database_storage_is_persistent() {
+        let path = std::env::temp_dir().join(format!(
+            "kitchen-table-persistence-{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let url = format!("sqlite://{}?mode=rwc", path.display());
+
+        let first = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        sqlx::migrate!().run(&first).await.unwrap();
+        let first_state = AppState {
+            db: first.clone(),
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        let room = create(
+            State(first_state),
+            Ok(Json(CreateBody {
+                game: GameKind::Race,
+                nickname: "Host".into(),
+            })),
+        )
+        .await
+        .unwrap()
+        .0;
+        let code = room["room"]["code"].as_str().unwrap().to_owned();
+        first.close().await;
+
+        let replacement = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .unwrap();
+        let replacement_state = AppState {
+            db: replacement.clone(),
+            build_sha: "test".into(),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        let loaded = get_room(
+            State(replacement_state),
+            Path(code),
+            Query(RoomQuery { token: None }),
+        )
+        .await
+        .unwrap()
+        .0;
+        assert_eq!(loaded["players"].as_array().unwrap().len(), 1);
+        replacement.close().await;
+        let _ = std::fs::remove_file(path);
     }
 }

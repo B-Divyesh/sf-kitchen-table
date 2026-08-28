@@ -104,6 +104,8 @@ summary:focus-visible {
   display: flex;
   gap: 10px;
   align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--paper);
   font-family: "Fraunces Variable", serif;
   font-weight: 650;
@@ -417,6 +419,10 @@ footer nav {
 }
 footer a {
   color: var(--paper);
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
 }
 .room-loading,
 .error-state,

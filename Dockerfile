@@ -20,9 +20,12 @@ WORKDIR /app
 COPY --from=server /app/target/release/kitchen-table /usr/local/bin/kitchen-table
 COPY --from=web /app/frontend/dist ./frontend/dist
 USER table
-ARG BUILD_SHA=830138fc4c0e5ece8448a31b1e989b8f4625a9ce
+# The deployment must inject the exact Git commit with --build-arg BUILD_SHA.
+# "unknown" is deliberately not a stale release identity.
+ARG BUILD_SHA=unknown
 ENV BUILD_SHA=$BUILD_SHA
 ENV PORT=8080 DATABASE_URL=sqlite:///data/kitchen-table.db?mode=rwc
+VOLUME ["/data"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O - http://127.0.0.1:8080/health || exit 1
 CMD ["kitchen-table"]
