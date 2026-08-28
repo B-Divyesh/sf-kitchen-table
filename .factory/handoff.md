@@ -1,37 +1,85 @@
-# Kitchen Table — review 3 handoff
+# Kitchen Table — polish 3 handoff
 
-## Completed
+## Shipped
 
-- Performed a cold-live, phone and desktop adversarial review against build
-  `6bb87aeb18e8655a5ba7e15e9d47808f6357edd5`.
-- Wrote the complete result in `.factory/review-3.md`.
-- Did not modify product code.
+Deployed repair source: `ca76ccf9de1490a1956ba6fb7bac22622d339cdf`.
+
+- Replaced replica-local sample-room state with an isolated durable `demo/`
+  Blob namespace in production and a separate `demo_rooms` SQLite table for
+  local runs. Demo records use conditional writes and expire after 24 hours;
+  they never read or write production `rooms` data.
+- Added the managed-identity selector required by the factory's user-assigned
+  identity. The public identifier is not a credential; no secret is in the
+  image or browser. Production room creation and shared demo replay now work
+  on the scaled Container App.
+- Completed direct `?demo=1` sample play for Make a Square, Lantern Race, and
+  High Five, with a persistent isolation banner, Reset demo, and Start for
+  real. Leaving the sample clears only its `demo:` browser namespace.
+- Added three observable game-rule claims and tests; the registry now has 17
+  claims, each with exactly one tagged test. Updated catalog copy, demo docs,
+  copy audit, privacy language, and README accordingly.
+- Fixed final asynchronous route focus and polite announcements, room-title
+  order, mobile sample layouts, and the cumulative routing/metadata/404/legal
+  requirements while keeping the existing kitchen-table visual direction.
+
+The full finding-by-finding closure is in `.factory/polish-3.md`.
 
 ## Verification
 
-Fresh clone: `/tmp/kitchen-table-review3-clean-eyp2gU`.
+Final clean clone: `/tmp/kitchen-table-polish3-final2-WQHkVl` at `ca76ccf`.
 
     npm ci
     npm test
     npm run build
 
-All passed: 14 Rust tests, 3 Vitest tests, 19 Playwright tests, and the
-provenance test. Every one of the 14 commands in `.factory/claims.json` was
-also run individually and passed locally. The live axe harness reported four
-screens with zero serious/critical violations.
+All passed: 15 Rust tests, 3 Vitest tests, 24 Playwright tests, and the
+provenance audit. All 17 commands listed in `.factory/claims.json` were then
+run individually from that clean clone and passed. A final registry audit
+confirmed 17 claims and exactly one `@claim:<id>` tag for each.
 
-The live basic demo correctly used only `demo:` browser storage, made no
-production-room request, reset its seed, exited without retaining demo data,
-and accepted an offline local move.
+Additional local checks passed:
+
+    cargo clippy --all-targets --all-features -- -D warnings
+    cargo build --release
+    node .factory/a11y-check.mjs http://127.0.0.1:4173
+    /opt/fleet/lib/verify-url.sh http://127.0.0.1:4173 .factory/evidence/polish-3-local
+
+The local accessibility pass covered seven screens with zero serious or
+critical issues. The production bundle is 29.62 KB JavaScript (9.80 KB gzip),
+20.38 KB CSS (5.48 KB gzip), and 71.35 KB self-hosted fonts.
+
+Live deployment and cold replay:
+
+    /opt/fleet/lib/deploy-container.sh kitchen-table /work/repo Dockerfile 8080
+    /opt/fleet/lib/verify-url.sh https://kitchen-table.sociobot.in .factory/evidence/polish-3-live
+    node .factory/a11y-check.mjs https://kitchen-table.sociobot.in
+    PLAYWRIGHT_BASE_URL=https://kitchen-table.sociobot.in npx playwright test
+
+- `https://kitchen-table.sociobot.in/health` returns build SHA `ca76ccf…`.
+- Cold live verification passed in 582 ms with zero console errors and a
+  complete semantic shell.
+- Live axe covered the landing page, three demo samples, and three real game
+  screens: 7 screens, 0 serious/critical issues.
+- The live browser suite passed all 24 checks, including eight fresh
+  host/guest/reload sample-room flows, privacy/network assertions, offline
+  demo play, focus/announcement behavior, 404/title checks, and rate-limit
+  429 behavior.
+- Public live checks: `/`, `/demo?game=race`, `/demo?game=dice`, `/privacy`,
+  `/terms`, and `/room/ABC123` returned 200; `/not-a-real-route` returned
+  404. Inspected live screenshots are in `.factory/evidence/polish-3-live/`.
+
+## How to run
+
+    npm ci
+    npm test
+    npm run build
+    cargo run
+
+Open `http://127.0.0.1:8080`, or open `/demo` / `?demo=1` for the isolated
+sample. For deployment, use the container command listed above; it needs only
+`PORT` at runtime.
 
 ## Known gaps
 
-The review verdict is **FAIL**. The live **Create sample room link** flow is
-not reliable across replicas: 16 fresh live attempts created a sample code and
-then immediately received “That sample room has expired.” The source stores
-sample rooms in a replica-local `HashMap`, so the next request may reach a
-different replica. This reopens review 2 F-2-4 as blocking F-3-1.
-
-The review also records lost focus after the asynchronous shared-demo route,
-three unlisted game-rule claims, and an inverted room title pattern. See
-`.factory/review-3.md` for exact evidence and concrete fixes.
+None. No AI feature was added because it would not improve the core family
+board-game job and would add an unrelated privacy/cost surface.
