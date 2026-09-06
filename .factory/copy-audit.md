@@ -65,6 +65,14 @@ and 1440 × 900, that action, its outcome, and all three facts are visible.
 | Make a new sample room | 5 | Pass |
 | That sample room has expired. Create a new sample link. | 10 | Actionable recovery: pass |
 
+## Missing-page recovery
+
+| Text | Words | Result |
+| --- | ---: | --- |
+| Page not found | 3 | Direct page state and route heading |
+| The link may be incomplete or the room may have been removed. | 11 | Plain explanation |
+| Choose a game / Join a room | 7 | Tested recovery actions |
+
 The README addition, “The shared sample workspace stays apart from real rooms,”
 has nine words and is covered by `demo-isolated` and `room-link-resume`.
 No visitor-facing sentence exceeds 22 words. No audited sentence contains a

@@ -87,7 +87,7 @@ test("sample banner names the game shown on every demo route", async ({ page }) 
   }
 });
 
-test("routes expose unique metadata and a useful HTTP 404", async ({ page, request }) => {
+test("unknown URLs report an unavailable page and offer working recovery actions", async ({ page, request }) => {
   for (const [path, title] of [["/", "Kitchen Table — family games on phones"], ["/demo", "Demo — Kitchen Table"], ["/privacy", "Privacy — Kitchen Table"], ["/terms", "Terms — Kitchen Table"]]) {
     await page.goto(path);
     await expect(page).toHaveTitle(title);
@@ -99,9 +99,13 @@ test("routes expose unique metadata and a useful HTTP 404", async ({ page, reque
   expect(response.status()).toBe(404);
   await page.goto("/not-a-real-route");
   await expect(page).toHaveTitle("Page not found — Kitchen Table");
-  await expect(page.getByRole("heading", { name: "This table is not here" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Choose a game" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Join a room" })).toBeVisible();
+  await expect(page.locator("main")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await page.getByRole("link", { name: "Choose a game" }).click();
+  await expect(page.getByRole("heading", { name: "Choose from three family games" })).toBeVisible();
+  await page.goto("/not-a-real-route");
+  await page.getByRole("link", { name: "Join a room" }).click();
+  await expect(page.getByRole("textbox", { name: "Room code" })).toBeFocused();
 });
 
 test("room routes keep Kitchen Table first in their document title", async ({ page }) => {
