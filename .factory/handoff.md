@@ -1,164 +1,86 @@
-# Kitchen Table — review 5 handoff
+# Kitchen Table — repair 4 handoff
 
-## Review result
+## Result
 
-Review 5 is **FAIL** with 4 findings and 0 untested claims. The full report is
-`.factory/review-5.md`. No product code changed.
+Review 5's four findings are fixed at implementation commit
+`285371898b60ef874f3a396134c97a30b6c00f75`. The complete closure report is
+`.factory/repair-4.md`.
 
-The implementation reviewed is
-`ca76ccf9de1490a1956ba6fb7bac22622d339cdf`; the documentation checkout is
-`35d9a87cd7312b8a808ea15352916f72c0d64bf1`; live `/health` reports
-`07482e63d94b066e660ca009d7404b92b9dd6307`. Commits after `ca76ccf` contain
-only reports and evidence, and the fresh local JavaScript/CSS files match live
-byte for byte.
+- Every sample banner names the game actually shown.
+- The footer exposes the deployed source identity and matches `/health`.
+- The identity claim rejects placeholders and asserts an exact known value.
+- The Dockerfile uses the supported rolling `rust:1-alpine` image.
+- Production state uses SQLite on the durable `/data` mount, with one replica.
+- A no-environment local start falls back to a database beside the executable.
 
-Required repair work:
-
-1. Race and dice demo banners must not say the active game is Make a Square.
-2. The live footer must show the deployed build instead of `Build local`.
-3. The health claim test must assert a known exact build value, not any string.
-4. The Dockerfile must use `rust:1-alpine`, not pinned `rust:1.88-alpine`.
-
-## Verification completed
-
-From `/tmp/kitchen-table-review5-VjlRyF` at the documentation checkout:
-
-    npm ci
-    npm test
-    npm run build
-    cargo clippy --all-targets --all-features -- -D warnings
-
-These passed. All 17 claim commands passed separately, and the live Playwright
-suite passed 24/24. Local axe covered seven screens with zero serious or
-critical violations; a separate live axe pass covered Home, three demos,
-Privacy, Terms, and 404 with zero violations. Mobile Lighthouse scored 99
-performance and 100 for accessibility, best practices, and SEO.
-
-Live checks also passed direct/shared demo isolation, reset and exit safety,
-offline reload/play, same-origin privacy, route titles, internal links, styled
-404, keyboard focus, reduced motion, 200% text, 44 px targets, invalid inputs,
-SQLite process-restart persistence, health, and 429 responses with
-`Retry-After: 1`.
-
-No OCI engine was installed, so the image itself was not rebuilt. This does
-not hide the static Dockerfile finding.
-
----
-
-# Kitchen Table — review 4 handoff
-
-## Review result
-
-Adversarial first-read review 4 passed at live build
-`07482e63d94b066e660ca009d7404b92b9dd6307`. The report is
-`.factory/review-4.md`. No product code changed in this review.
-
-Verification from a fresh clone (`/tmp/kitchen-table-review4-WU3XNm`):
-
-    npm ci
-    npm test
-    npm run build
-
-All passed: 15 Rust tests, 3 Vitest tests, 24 Playwright tests, and artwork
-provenance. Every one of the 17 commands in `.factory/claims.json` also passed
-independently. The live browser suite passed with:
-
-    PLAYWRIGHT_BASE_URL=https://kitchen-table.sociobot.in npx playwright test
-
-Additional review checks passed: cold 390 × 844 and 1440 × 900 first screens,
-demo reset/exit isolation with an existing real-storage sentinel, offline
-sample play, live two-phone sample replay, route/link crawl, and local
-seven-screen axe audit (zero serious/critical).
-
-## Known gaps
-
-None found in this review. Preserve the existing demo/claim isolation and
-repeat the live multi-context demo check after future deployment changes.
-
----
-
-# Previous polish 3 handoff
-
-## Shipped
-
-Deployed repair source: `ca76ccf9de1490a1956ba6fb7bac22622d339cdf`.
-
-- Replaced replica-local sample-room state with an isolated durable `demo/`
-  Blob namespace in production and a separate `demo_rooms` SQLite table for
-  local runs. Demo records use conditional writes and expire after 24 hours;
-  they never read or write production `rooms` data.
-- Added the managed-identity selector required by the factory's user-assigned
-  identity. The public identifier is not a credential; no secret is in the
-  image or browser. Production room creation and shared demo replay now work
-  on the scaled Container App.
-- Completed direct `?demo=1` sample play for Make a Square, Lantern Race, and
-  High Five, with a persistent isolation banner, Reset demo, and Start for
-  real. Leaving the sample clears only its `demo:` browser namespace.
-- Added three observable game-rule claims and tests; the registry now has 17
-  claims, each with exactly one tagged test. Updated catalog copy, demo docs,
-  copy audit, privacy language, and README accordingly.
-- Fixed final asynchronous route focus and polite announcements, room-title
-  order, mobile sample layouts, and the cumulative routing/metadata/404/legal
-  requirements while keeping the existing kitchen-table visual direction.
-
-The full finding-by-finding closure is in `.factory/polish-3.md`.
+The evidence and documentation commit containing this handoff is recorded by
+the final handoff-only commit after deployment. It intentionally differs from
+the implementation commit above.
 
 ## Verification
 
-Final clean clone: `/tmp/kitchen-table-polish3-final2-WQHkVl` at `ca76ccf`.
+From a clean checkout at the implementation commit:
 
-    npm ci
-    npm test
-    npm run build
+```sh
+npm ci
+npm test
+npm run build
+cargo clippy --all-targets --all-features -- -D warnings
+cargo build --release
+```
 
-All passed: 15 Rust tests, 3 Vitest tests, 24 Playwright tests, and the
-provenance audit. All 17 commands listed in `.factory/claims.json` were then
-run individually from that clean clone and passed. A final registry audit
-confirmed 17 claims and exactly one `@claim:<id>` tag for each.
+All passed: 15 Rust tests, 3 Vitest tests, 25 Playwright tests, and the artwork
+provenance audit. Each of the 17 commands in `.factory/claims.json` then passed
+independently. A separate process started with only `PORT`; it created SQLite
+beside its executable and served a healthy response.
 
-Additional local checks passed:
+The deployed browser suite passed 25/25. The factory URL verifier found no
+console errors. Axe found no serious or critical issues on the seven main
+screens or on Privacy, Terms, and 404. The expected unknown route returns 404
+with the designed recovery page.
 
-    cargo clippy --all-targets --all-features -- -D warnings
-    cargo build --release
-    node .factory/a11y-check.mjs http://127.0.0.1:4173
-    /opt/fleet/lib/verify-url.sh http://127.0.0.1:4173 .factory/evidence/polish-3-local
+Mobile Lighthouse scored 99 performance and 100 for accessibility, best
+practices, and SEO. LCP was 1.65 seconds, CLS was 0.038, and total blocking
+time was 0 ms. JavaScript is 29.77 KB, CSS is 20.38 KB, self-hosted fonts are
+71.35 KB, and the mobile hero is 29.06 KB.
 
-The local accessibility pass covered seven screens with zero serious or
-critical issues. The production bundle is 29.62 KB JavaScript (9.80 KB gzip),
-20.38 KB CSS (5.48 KB gzip), and 71.35 KB self-hosted fonts.
+Live normal, invalid, boundary, and recovery checks passed. These include all
+three populated samples, reset and exit without changes to a real-data
+sentinel, two-phone room replay, offline reload and sample play, keyboard and
+focus behavior, reduced motion, 200% text, malformed JSON, a 21-character
+nickname rejection, missing-room recovery, 429 with `Retry-After`, and a real
+replica restart with persisted sample state.
 
-Live deployment and cold replay:
+## Deployment
 
-    /opt/fleet/lib/deploy-container.sh kitchen-table /work/repo Dockerfile 8080
-    /opt/fleet/lib/verify-url.sh https://kitchen-table.sociobot.in .factory/evidence/polish-3-live
-    node .factory/a11y-check.mjs https://kitchen-table.sociobot.in
-    PLAYWRIGHT_BASE_URL=https://kitchen-table.sociobot.in npx playwright test
+The durable deployment uses the fleet-created `sf-kitchen-table-data` storage
+through `/data`, with minimum and maximum replicas both set to one. The final
+revision, image digest, deployed source SHA, and post-deploy health result are
+recorded by the final handoff-only commit.
 
-- `https://kitchen-table.sociobot.in/health` returns build SHA `ca76ccf…`.
-- Cold live verification passed in 582 ms with zero console errors and a
-  complete semantic shell.
-- Live axe covered the landing page, three demo samples, and three real game
-  screens: 7 screens, 0 serious/critical issues.
-- The live browser suite passed all 24 checks, including eight fresh
-  host/guest/reload sample-room flows, privacy/network assertions, offline
-  demo play, focus/announcement behavior, 404/title checks, and rate-limit
-  429 behavior.
-- Public live checks: `/`, `/demo?game=race`, `/demo?game=dice`, `/privacy`,
-  `/terms`, and `/room/ABC123` returned 200; `/not-a-real-route` returned
-  404. Inspected live screenshots are in `.factory/evidence/polish-3-live/`.
+Two intermediate revisions could not start while the default SQLite locking
+mode was used on Azure Files. They received no traffic and were deactivated;
+the prior healthy revision remained live throughout. Dot-file locking fixed
+the mount compatibility issue.
 
-## How to run
+## Run locally
 
-    npm ci
-    npm test
-    npm run build
-    cargo run
+```sh
+npm ci
+npm test
+npm run build
+cargo run
+```
 
-Open `http://127.0.0.1:8080`, or open `/demo` / `?demo=1` for the isolated
-sample. For deployment, use the container command listed above; it needs only
-`PORT` at runtime.
+Open `http://127.0.0.1:8080`, or `/demo` for the isolated sample. The container
+requires only `PORT`; it writes product state to `/data`.
 
-## Known gaps
+## Known gap
 
-None. No AI feature was added because it would not improve the core family
-board-game job and would add an unrelated privacy/cost surface.
+Rooms from the earlier external storage configuration were not read or moved.
+The work order permits product state only in this product's `/data` mount.
+New rooms and samples persist there across process replacement.
+
+No AI feature was added because it would not help the family game loop and
+would add an unrelated privacy and cost surface. There is no paid offer, so no
+billing metadata is required.

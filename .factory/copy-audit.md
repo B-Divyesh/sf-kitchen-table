@@ -1,4 +1,4 @@
-# Copy audit — 28 August 2026, polish 3
+# Copy audit — 6 September 2026, repair 4
 
 The first screen reads in one breath: “Play family games on separate phones.”
 The next action opens a two-player sample already in progress. At 390 × 844
@@ -36,6 +36,7 @@ and 1440 × 900, that action, its outcome, and all three facts are visible.
 | Family games for separate phones. | 5 | Pass |
 | Artwork generated for Kitchen Table. | 5 | Pass; registered claim |
 | Built by Param Factory (external site) | 6 | Pass; destination returns 200 |
+| Build &lt;7-character source SHA&gt; | 2 | Pass; exact full identity is available on the element |
 | You’re offline. Your open board stays visible. | 7 | Pass; registered offline behavior |
 | Reconnect before making a real move. | 6 | Pass |
 
@@ -45,6 +46,8 @@ and 1440 × 900, that action, its outcome, and all three facts are visible.
 | --- | ---: | --- |
 | Demo — sample data, nothing is saved | 7 | Pass; registered claim |
 | Alex and Ravi are playing Make a Square. | 8 | Pass |
+| Alex and Ravi are playing Lantern Race. | 8 | Pass |
+| Alex and Ravi are playing High Five. | 7 | Pass |
 | Alex and Ravi have claimed squares already. | 7 | Pass; registered claim |
 | Draw one open line to see the turn change. | 9 | Pass |
 | Demo moves and random demo seat tokens stay in isolated demo storage. | 12 | Pass |
