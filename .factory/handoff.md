@@ -1,78 +1,30 @@
-# Kitchen Table — review 6 handoff
-
-## Strict review 6
-
-**FAIL:** the product has **1 minor finding** and **0 untested public claims**.
-See `.factory/review-6.md` for the full evidence.
-
-The implementation reviewed remains
-`285371898b60ef874f3a396134c97a30b6c00f75`. The review checkout is
-`2f641770134207657c8658229724d30094c33e39`, and the live runtime reports
-`e22ad2a38608d12522a5a5ef970e1f613bf467fa`. Commits after the implementation
-contain only `.factory/` documentation and evidence. A clean build with the
-live SHA matched the deployed JavaScript and CSS byte for byte.
-
-The one open item is copy-only: the designed 404 uses the mood label **“Empty
-chair”** and metaphorical h1 **“This table is not here.”** The attached
-plain-words contract requires direct headings without metaphor. Replace these
-with a direct **“Page not found”** heading while retaining the useful
-explanation and recovery actions. Product code was not changed because this
-work order explicitly prohibited it.
-
-Review 6 independently passed all 17 claim commands, `npm test`, `npm run
-build`, strict Clippy, the release build, and all 25 live Playwright tests. It
-also passed fresh phone/desktop first screens, sample isolation/reset/exit,
-all three samples, a real two-phone room, a full 24-move game completion,
-controlled invalid/boundary errors, 429 plus `Retry-After`, local process
-restart persistence, demo/production isolation, offline service-worker reload,
-keyboard/focus/reduced-motion/200%-text checks, Axe, and mobile Lighthouse.
-Lighthouse scored 99 performance and 100 for accessibility, best practices,
-and SEO.
-
-No deployment was performed. After the 404 copy is repaired and deployed,
-repeat the 404 copy, title, one-h1/main, Axe, and recovery-link checks, then
-rerun the full live browser suite.
-
-## Repair 4 history
-
-## Independent verification 4
-
-**PASS:** independent QA found zero findings and zero untested claims. The
-implementation reviewed was `285371898b60ef874f3a396134c97a30b6c00f75`; the
-documentation checkout was `e22ad2a38608d12522a5a5ef970e1f613bf467fa`. Live
-health and the footer agree on `e22ad2a…`; the diff from the implementation to
-that documentation-only descendant contains no runtime product files. See
-`.factory/verification-4.md` for the complete evidence.
-
-Verification repeated all 17 declared claim commands separately, the clean
-test/build/Clippy/release gates, and the 25-test live browser suite. It also
-retested phone and desktop first screens, sample isolation/reset/exit, all game
-samples, real-room lifecycle and public-token privacy, invalid/recovery paths,
-429 plus `Retry-After`, durable restart and demo/real isolation tests,
-offline/service-worker behavior, keyboard/reduced-motion/200% text, Axe, and
-mobile Lighthouse (99 performance, 100 accessibility).
+# Kitchen Table — repair 5 handoff
 
 ## Result
 
-Review 5's four findings are fixed at implementation commit
-`285371898b60ef874f3a396134c97a30b6c00f75`. The complete closure report is
-`.factory/repair-4.md`.
+**PASS.** Kitchen Table lets couples and families play three shared family
+games on separate phones without an account or ads. The first action is
+**Try it with sample data**, which opens a populated two-player game.
 
-- Every sample banner names the game actually shown.
-- The footer exposes the deployed source identity and matches `/health`.
-- The identity claim rejects placeholders and asserts an exact known value.
-- The Dockerfile uses the supported rolling `rust:1-alpine` image.
-- Production state uses SQLite on the durable `/data` mount, with one replica.
-- A no-environment local start falls back to a database beside the executable.
+Review 6's only finding is fixed. The designed unknown-route page now uses the
+direct heading **“Page not found”** and direct description. It retains the
+working **Choose a game** and **Join a room** recovery actions.
 
-The deployed documentation/evidence source is
-`74b1bb14a16a1c851e02c179a044ee81535bd09c`. The final handoff-only commit
-follows it and does not require a new product image. Both intentionally differ
-from the implementation commit above.
+## Source identity and deployment
+
+The deployed implementation is
+`873861a05038a9c56462cde54e98e67dffc597a1`; `/health` and the visible footer
+agree on that exact value. The deployment image is
+`sociobotregistry.azurecr.io/sf-kitchen-table@sha256:05f545bc0a58730f86b36c502bc9202be4e52b1c5ff7882321d8a7af14a1d2ec`.
+
+The container deployment preserved its durable `sf-kitchen-table-data` mount
+at `/data`, existing environment/probes, and one-replica SQLite limit. It
+requires only `PORT`; local no-environment runs use a database alongside the
+binary when `/data` is absent.
 
 ## Verification
 
-From a clean checkout at the exact deployed source commit (`74b1bb1`):
+From the documented clean setup, these all passed:
 
 ```sh
 npm ci
@@ -82,41 +34,30 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo build --release
 ```
 
-All passed: 15 Rust tests, 3 Vitest tests, 25 Playwright tests, and the artwork
-provenance audit. Each of the 17 commands in `.factory/claims.json` then passed
-independently. A separate process started with only `PORT`; it created SQLite
-beside its executable and served a healthy response.
+The full suite passed 15 Rust tests, 3 Vitest tests, 25 Playwright tests, and
+the artwork provenance audit. All 17 commands in `.factory/claims.json` also
+passed separately.
 
-The deployed browser suite passed 25/25. The factory URL verifier found no
-console errors. Axe found no serious or critical issues on the seven main
-screens or on Privacy, Terms, and 404. The expected unknown route returns 404
-with the designed recovery page.
+Local URL verification found no console errors, one title/h1/main structure,
+`lang=en`, complete alt text, and labelled buttons. The seven-screen Axe scan
+had zero serious or critical issues.
 
-Mobile Lighthouse scored 99 performance and 100 for accessibility, best
-practices, and SEO. LCP was 1.65 seconds, CLS was 0.038, and total blocking
-time was 0 ms. JavaScript is 29.77 KB, CSS is 20.38 KB, self-hosted fonts are
-71.35 KB, and the mobile hero is 29.06 KB.
+Live HTTPS checks passed for fresh desktop and phone first screens, the
+populated demo, sample label/reset/exit isolation, all three sample games,
+two-phone sample resume, privacy boundaries, offline sample behavior, keyboard
+and focus behavior, reduced motion, rate limiting, and build identity. The
+full live browser suite passed 25/25. The 404 has HTTP status 404, a direct
+title and h1, no prior mood copy, zero serious/critical Axe issues, and both
+recovery actions work.
 
-Live normal, invalid, boundary, and recovery checks passed. These include all
-three populated samples, reset and exit without changes to a real-data
-sentinel, two-phone room replay, offline reload and sample play, keyboard and
-focus behavior, reduced motion, 200% text, malformed JSON, a 21-character
-nickname rejection, missing-room recovery, 429 with `Retry-After`, and a real
-replica restart with persisted sample state.
+`/work/.evidence/catalog-description.txt` is an exact copy of the 74-byte,
+verb-first catalog description.
 
-## Deployment
+## Documentation and history
 
-The durable deployment uses the fleet-created `sf-kitchen-table-data` storage
-through `/data`, with minimum and maximum replicas both set to one. Revision
-`sf-kitchen-table--0000025` has 100% traffic and one replica. Its image digest
-is `sha256:6af5877239e23e7cbca7bec08ed1e145e64025d81b28f271e433ffdb406362ea`.
-`/health` returns the exact deployed source SHA `74b1bb14a16a1c851e02c179a044ee81535bd09c`,
-and the visible footer says `Build 74b1bb1` with the same full value attached.
-
-Two intermediate revisions could not start while the default SQLite locking
-mode was used on Azure Files. They received no traffic and were deactivated;
-the prior healthy revision remained live throughout. Dot-file locking fixed
-the mount compatibility issue.
+`.factory/repair-5.md` records the focused change and evidence. Review 6
+already replayed all earlier review, verification, polish, and repair findings;
+this repair reran the full local and live suites and reopened none of them.
 
 ## Run locally
 
@@ -127,15 +68,13 @@ npm run build
 cargo run
 ```
 
-Open `http://127.0.0.1:8080`, or `/demo` for the isolated sample. The container
-requires only `PORT`; it writes product state to `/data`.
+Open `http://127.0.0.1:8080`, or `/demo` for the isolated sample.
 
-## Known gap
+## Known gaps
 
-Rooms from the earlier external storage configuration were not read or moved.
-The work order permits product state only in this product's `/data` mount.
-New rooms and samples persist there across process replacement.
+There are no known product gaps in the reviewed scope. The deliberate HTTP 404
+may be shown by browsers as an expected failed-document network request; the
+complete recovery page is intentional and remains usable.
 
-No AI feature was added because it would not help the family game loop and
-would add an unrelated privacy and cost surface. There is no paid offer, so no
-billing metadata is required.
+No AI feature is used because it would not improve this turn-based family-game
+job. There is no paid offer or billing dependency.
