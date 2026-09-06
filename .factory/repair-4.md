@@ -2,6 +2,8 @@
 
 Repaired and verified on 6 September 2026. The implementation commit is
 `285371898b60ef874f3a396134c97a30b6c00f75`.
+The deployed source and documentation evidence commit is
+`74b1bb14a16a1c851e02c179a044ee81535bd09c`.
 
 ## Review 5 findings
 
@@ -30,8 +32,8 @@ privacy, real room-link resume, and 429 responses with `Retry-After`.
 
 ## Current verification
 
-- Clean checkout: `npm ci`, `npm test`, `npm run build`, strict Clippy, and
-  `cargo build --release` pass.
+- Clean checkout at the exact deployed source: `npm ci`, `npm test`,
+  `npm run build`, strict Clippy, and `cargo build --release` pass.
 - Full suite: 15 Rust, 3 Vitest, 25 Playwright, and provenance checks pass.
 - Every command in `.factory/claims.json`: 17/17 pass separately.
 - Live browser suite: 25/25 pass.

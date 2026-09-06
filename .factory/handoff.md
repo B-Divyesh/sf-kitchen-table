@@ -13,13 +13,14 @@ Review 5's four findings are fixed at implementation commit
 - Production state uses SQLite on the durable `/data` mount, with one replica.
 - A no-environment local start falls back to a database beside the executable.
 
-The evidence and documentation commit containing this handoff is recorded by
-the final handoff-only commit after deployment. It intentionally differs from
-the implementation commit above.
+The deployed documentation/evidence source is
+`74b1bb14a16a1c851e02c179a044ee81535bd09c`. The final handoff-only commit
+follows it and does not require a new product image. Both intentionally differ
+from the implementation commit above.
 
 ## Verification
 
-From a clean checkout at the implementation commit:
+From a clean checkout at the exact deployed source commit (`74b1bb1`):
 
 ```sh
 npm ci
@@ -54,9 +55,11 @@ replica restart with persisted sample state.
 ## Deployment
 
 The durable deployment uses the fleet-created `sf-kitchen-table-data` storage
-through `/data`, with minimum and maximum replicas both set to one. The final
-revision, image digest, deployed source SHA, and post-deploy health result are
-recorded by the final handoff-only commit.
+through `/data`, with minimum and maximum replicas both set to one. Revision
+`sf-kitchen-table--0000025` has 100% traffic and one replica. Its image digest
+is `sha256:6af5877239e23e7cbca7bec08ed1e145e64025d81b28f271e433ffdb406362ea`.
+`/health` returns the exact deployed source SHA `74b1bb14a16a1c851e02c179a044ee81535bd09c`,
+and the visible footer says `Build 74b1bb1` with the same full value attached.
 
 Two intermediate revisions could not start while the default SQLite locking
 mode was used on Azure Files. They received no traffic and were deactivated;

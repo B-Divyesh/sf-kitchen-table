@@ -1,0 +1,17 @@
+demo-isolated	PASS	npx playwright test --grep @claim:demo-isolated
+demo-in-progress	PASS	npx playwright test --grep @claim:demo-in-progress
+demo-reset	PASS	npx playwright test --grep @claim:demo-reset
+demo-offline	PASS	npx playwright test --grep @claim:demo-offline
+no-account	PASS	npx playwright test --grep @claim:no-account
+no-ads	PASS	npx playwright test --grep @claim:no-ads
+three-games	PASS	npx playwright test --grep @claim:three-games
+race-gameplay	PASS	npx playwright test --grep @claim:race-gameplay
+dots-gameplay	PASS	npx playwright test --grep @claim:dots-gameplay
+dice-gameplay	PASS	npx playwright test --grep @claim:dice-gameplay
+room-link-resume	PASS	npx playwright test --grep @claim:room-link-resume
+no-strangers-or-payments	PASS	npx playwright test --grep @claim:no-strangers-or-payments
+storage-disclosure	PASS	npx playwright test --grep @claim:storage-disclosure
+seat-token-private	PASS	npx playwright test --grep @claim:seat-token-private
+deletion-contact	PASS	npx playwright test --grep @claim:deletion-contact
+server-health-and-limits	PASS	npx playwright test --grep @claim:server-health-and-limits
+artwork-provenance	PASS	node tests/provenance.test.mjs --grep @claim:artwork-provenance

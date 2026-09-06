@@ -12,8 +12,8 @@ and reloads its seed. **Start for real** returns to the ordinary landing page,
 deletes every demo key, and does not copy sample data into a real room.
 
 **Create sample room link** provisions a 24-hour isolated sample workspace
-through `/api/demo/rooms`. In deployment, it uses the durable `demo/` storage
-prefix so every replica can reopen the same sample. It is not reachable through
-production room routes or stored in the production `rooms` table. Its Alex and Ravi seat tokens use
-`demo:kitchen-table:seat:<code>` keys. The share flow never calls the
-production `/api/rooms` routes or creates a database row.
+through `/api/demo/rooms`. In deployment, it uses the separate `demo_rooms`
+table in the durable SQLite database. It is not reachable through production
+room routes or stored in the production `rooms` table. Its Alex and Ravi seat
+tokens use `demo:kitchen-table:seat:<code>` keys. The share flow never calls
+the production `/api/rooms` routes or creates a production-room row.
