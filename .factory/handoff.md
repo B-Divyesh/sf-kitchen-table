@@ -1,5 +1,22 @@
 # Kitchen Table — repair 4 handoff
 
+## Independent verification 4
+
+**PASS:** independent QA found zero findings and zero untested claims. The
+implementation reviewed was `285371898b60ef874f3a396134c97a30b6c00f75`; the
+documentation checkout was `e22ad2a38608d12522a5a5ef970e1f613bf467fa`. Live
+health and the footer agree on `e22ad2a…`; the diff from the implementation to
+that documentation-only descendant contains no runtime product files. See
+`.factory/verification-4.md` for the complete evidence.
+
+Verification repeated all 17 declared claim commands separately, the clean
+test/build/Clippy/release gates, and the 25-test live browser suite. It also
+retested phone and desktop first screens, sample isolation/reset/exit, all game
+samples, real-room lifecycle and public-token privacy, invalid/recovery paths,
+429 plus `Retry-After`, durable restart and demo/real isolation tests,
+offline/service-worker behavior, keyboard/reduced-motion/200% text, Axe, and
+mobile Lighthouse (99 performance, 100 accessibility).
+
 ## Result
 
 Review 5's four findings are fixed at implementation commit
