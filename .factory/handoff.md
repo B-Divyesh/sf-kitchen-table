@@ -1,3 +1,50 @@
+# Kitchen Table — review 5 handoff
+
+## Review result
+
+Review 5 is **FAIL** with 4 findings and 0 untested claims. The full report is
+`.factory/review-5.md`. No product code changed.
+
+The implementation reviewed is
+`ca76ccf9de1490a1956ba6fb7bac22622d339cdf`; the documentation checkout is
+`35d9a87cd7312b8a808ea15352916f72c0d64bf1`; live `/health` reports
+`07482e63d94b066e660ca009d7404b92b9dd6307`. Commits after `ca76ccf` contain
+only reports and evidence, and the fresh local JavaScript/CSS files match live
+byte for byte.
+
+Required repair work:
+
+1. Race and dice demo banners must not say the active game is Make a Square.
+2. The live footer must show the deployed build instead of `Build local`.
+3. The health claim test must assert a known exact build value, not any string.
+4. The Dockerfile must use `rust:1-alpine`, not pinned `rust:1.88-alpine`.
+
+## Verification completed
+
+From `/tmp/kitchen-table-review5-VjlRyF` at the documentation checkout:
+
+    npm ci
+    npm test
+    npm run build
+    cargo clippy --all-targets --all-features -- -D warnings
+
+These passed. All 17 claim commands passed separately, and the live Playwright
+suite passed 24/24. Local axe covered seven screens with zero serious or
+critical violations; a separate live axe pass covered Home, three demos,
+Privacy, Terms, and 404 with zero violations. Mobile Lighthouse scored 99
+performance and 100 for accessibility, best practices, and SEO.
+
+Live checks also passed direct/shared demo isolation, reset and exit safety,
+offline reload/play, same-origin privacy, route titles, internal links, styled
+404, keyboard focus, reduced motion, 200% text, 44 px targets, invalid inputs,
+SQLite process-restart persistence, health, and 429 responses with
+`Retry-After: 1`.
+
+No OCI engine was installed, so the image itself was not rebuilt. This does
+not hide the static Dockerfile finding.
+
+---
+
 # Kitchen Table — review 4 handoff
 
 ## Review result
