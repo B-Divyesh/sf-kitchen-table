@@ -1,4 +1,39 @@
-# Kitchen Table — repair 4 handoff
+# Kitchen Table — review 6 handoff
+
+## Strict review 6
+
+**FAIL:** the product has **1 minor finding** and **0 untested public claims**.
+See `.factory/review-6.md` for the full evidence.
+
+The implementation reviewed remains
+`285371898b60ef874f3a396134c97a30b6c00f75`. The review checkout is
+`2f641770134207657c8658229724d30094c33e39`, and the live runtime reports
+`e22ad2a38608d12522a5a5ef970e1f613bf467fa`. Commits after the implementation
+contain only `.factory/` documentation and evidence. A clean build with the
+live SHA matched the deployed JavaScript and CSS byte for byte.
+
+The one open item is copy-only: the designed 404 uses the mood label **“Empty
+chair”** and metaphorical h1 **“This table is not here.”** The attached
+plain-words contract requires direct headings without metaphor. Replace these
+with a direct **“Page not found”** heading while retaining the useful
+explanation and recovery actions. Product code was not changed because this
+work order explicitly prohibited it.
+
+Review 6 independently passed all 17 claim commands, `npm test`, `npm run
+build`, strict Clippy, the release build, and all 25 live Playwright tests. It
+also passed fresh phone/desktop first screens, sample isolation/reset/exit,
+all three samples, a real two-phone room, a full 24-move game completion,
+controlled invalid/boundary errors, 429 plus `Retry-After`, local process
+restart persistence, demo/production isolation, offline service-worker reload,
+keyboard/focus/reduced-motion/200%-text checks, Axe, and mobile Lighthouse.
+Lighthouse scored 99 performance and 100 for accessibility, best practices,
+and SEO.
+
+No deployment was performed. After the 404 copy is repaired and deployed,
+repeat the 404 copy, title, one-h1/main, Axe, and recovery-link checks, then
+rerun the full live browser suite.
+
+## Repair 4 history
 
 ## Independent verification 4
 
