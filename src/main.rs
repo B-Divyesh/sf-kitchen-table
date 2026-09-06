@@ -14,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use sqlx::any::AnyPoolOptions;
-use std::path::Path as FsPath;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{net::SocketAddr, str::FromStr};
@@ -35,10 +35,7 @@ async fn main() {
                 .add_directive("kitchen_table=info".parse().unwrap()),
         )
         .init();
-    let database_url = std::env::var("DATABASE_URL")
-        // Azure Files does not provide SQLite's default POSIX byte-range lock
-        // semantics. The dot-file VFS keeps locking on the mounted filesystem.
-        .unwrap_or_else(|_| "sqlite:///data/kitchen-table-v3.db?mode=rwc&vfs=unix-dotfile".into());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| default_database_url());
     api::install_db_drivers();
     let db = AnyPoolOptions::new()
         // One connection matches the one-replica SQLite deployment and keeps
@@ -125,6 +122,20 @@ async fn main() {
         .with_graceful_shutdown(shutdown())
         .await
         .unwrap();
+}
+
+fn default_database_url() -> String {
+    let path = if FsPath::new("/data").is_dir() {
+        PathBuf::from("/data/kitchen-table-v3.db")
+    } else {
+        std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(|parent| parent.join("kitchen-table.db")))
+            .unwrap_or_else(|| PathBuf::from("kitchen-table.db"))
+    };
+    // Azure Files does not provide SQLite's default POSIX byte-range lock
+    // semantics. The dot-file VFS keeps locking on the mounted filesystem.
+    format!("sqlite://{}?mode=rwc&vfs=unix-dotfile", path.display())
 }
 
 /// Known browser routes are served as the SPA with an HTTP 200. Unknown paths
