@@ -54,6 +54,8 @@ Live verification at `https://kitchen-table.sociobot.in` passed:
 - The live URL check had no application console errors and found the required
   title, language, h1, main, alt text, and labels.
 - Axe found zero serious or critical violations on the seven game screens.
+- A fresh mobile Lighthouse run scored 99 performance and 100 for
+  accessibility, best practices, and SEO (LCP 1.68 s, CLS 0.038, TBT 0 ms).
 - A fresh phone check of `/not-a-real-route` returned HTTP 404, title
   **“Page not found — Kitchen Table”**, h1 **“Page not found”**, no prior mood
   copy, zero serious/critical Axe issues, and working game/join recovery

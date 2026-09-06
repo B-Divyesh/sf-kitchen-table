@@ -53,6 +53,10 @@ full live browser suite passed 25/25. The 404 has HTTP status 404, a direct
 title and h1, no prior mood copy, zero serious/critical Axe issues, and both
 recovery actions work.
 
+A fresh live mobile Lighthouse run scored 99 performance and 100 for
+accessibility, best practices, and SEO. LCP was 1.68 seconds, CLS was 0.038,
+and total blocking time was 0 ms.
+
 `/work/.evidence/catalog-description.txt` is an exact copy of the 74-byte,
 verb-first catalog description.
 
