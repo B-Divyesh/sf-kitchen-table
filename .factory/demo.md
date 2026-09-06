@@ -2,7 +2,8 @@
 
 Open `/demo` or `/?demo=1` to enter the sample directly. It starts a Make a
 Square room where Alex and Ravi have already claimed three squares. The same
-screen links to playable Lantern Race and High Five samples.
+screen links to playable Lantern Race and High Five samples. The persistent
+banner names the sample game currently shown.
 
 Local sample state uses the `demo:kitchen-table:` namespace, including
 `make-a-square`, `lantern-race`, and `high-five`. It never reads a `kt:` seat

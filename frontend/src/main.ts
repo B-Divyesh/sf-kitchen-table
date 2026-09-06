@@ -3,14 +3,18 @@ import { act, createRoom, getRoom, joinRoom, remember, startRoom } from "./api";
 import { diceView, dotsView, raceView } from "./game-views";
 import { gameInfo, type GameKind, type Room } from "./models";
 
+declare const __BUILD_SHA__: string;
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const site = "https://kitchen-table.sociobot.in";
 let poll: number | undefined;
 let busy = false;
 const esc = (s: string) => s.replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]!));
+const buildSha = __BUILD_SHA__.trim() || "dev";
+document.documentElement.dataset.build = buildSha;
 const header = () => `<header class="site-header"><a class="wordmark" href="/" data-link aria-label="Kitchen Table home"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13"/><circle cx="11" cy="11" r="2"/><circle cx="21" cy="21" r="2"/></svg>Kitchen Table</a><nav aria-label="Main navigation"><a href="/demo" data-link>Demo</a><a href="/#games">Games</a><a href="/privacy" data-link>Privacy</a></nav></header>`;
-const footer = () => `<footer><p>Family games for separate phones. <span>Artwork generated for Kitchen Table.</span></p><nav aria-label="Footer"><a href="/privacy" data-link>Privacy</a><a href="/terms" data-link>Terms</a><a href="https://hello-factory.sociobot.in/" rel="external">Built by Param Factory (external site)</a><span class="build">Build ${document.documentElement.dataset.build || "local"}</span></nav></footer>`;
-const shell = (body: string, demo = false) => `${header()}${demo ? '<aside class="demo-banner" aria-label="Demo controls"><strong>Demo — sample data, nothing is saved</strong><span>Alex and Ravi are playing Make a Square.</span><button class="quiet compact" id="reset-demo">Reset demo</button><a class="quiet compact" href="/" data-link id="start-real">Start for real</a></aside>' : ""}<main id="main" tabindex="-1">${body}</main>${footer()}<div id="route-status" class="sr-only" aria-live="polite"></div><div id="toast" class="toast" role="status" aria-live="polite"></div><div class="offline" hidden>You’re offline. Your open board stays visible. Reconnect before making a real move.</div>`;
+const footer = () => `<footer><p>Family games for separate phones. <span>Artwork generated for Kitchen Table.</span></p><nav aria-label="Footer"><a href="/privacy" data-link>Privacy</a><a href="/terms" data-link>Terms</a><a href="https://hello-factory.sociobot.in/" rel="external">Built by Param Factory (external site)</a><span class="build" data-build-sha="${esc(buildSha)}" title="Build ${esc(buildSha)}">Build ${esc(buildSha.slice(0, 7))}</span></nav></footer>`;
+const shell = (body: string, demoGame?: string) => `${header()}${demoGame ? `<aside class="demo-banner" aria-label="Demo controls"><strong>Demo — sample data, nothing is saved</strong><span>Alex and Ravi are playing ${esc(demoGame)}.</span><button class="quiet compact" id="reset-demo">Reset demo</button><a class="quiet compact" href="/" data-link id="start-real">Start for real</a></aside>` : ""}<main id="main" tabindex="-1">${body}</main>${footer()}<div id="route-status" class="sr-only" aria-live="polite"></div><div id="toast" class="toast" role="status" aria-live="polite"></div><div class="offline" hidden>You’re offline. Your open board stays visible. Reconnect before making a real move.</div>`;
 
 function meta(title: string, description: string, path: string) {
   document.title = title;
@@ -125,20 +129,20 @@ function demo() {
   stop(); meta("Demo — Kitchen Table", "Try a two-player sample game that stays in demo storage.", "/demo");
   const kind=activeDemoKind();
   if(kind==="race") {
-    const state=readSample(raceDemoKey,initialRaceDemo);localStorage.setItem(raceDemoKey,JSON.stringify(state));app.innerHTML=shell(raceDemoContent(state),true);finish();
+    const state=readSample(raceDemoKey,initialRaceDemo);localStorage.setItem(raceDemoKey,JSON.stringify(state));app.innerHTML=shell(raceDemoContent(state),"Lantern Race");finish();
     bindDemoChrome(()=>{localStorage.removeItem(raceDemoKey);demo();toast("Sample game reset.");});
     document.querySelectorAll<HTMLButtonElement>("[data-race-pawn]").forEach(button=>button.onclick=()=>{const next=readSample(raceDemoKey,initialRaceDemo);const pawn=Number(button.dataset.racePawn);next.pawns[pawn]=(next.pawns[pawn]+3)%12;localStorage.setItem(raceDemoKey,JSON.stringify(next));demo();document.querySelector<HTMLElement>(`[data-race-pawn=\"${pawn}\"]`)?.focus();});
     return;
   }
   if(kind==="dice") {
-    const state=readSample(diceDemoKey,initialDiceDemo);localStorage.setItem(diceDemoKey,JSON.stringify(state));app.innerHTML=shell(diceDemoContent(state),true);finish();
+    const state=readSample(diceDemoKey,initialDiceDemo);localStorage.setItem(diceDemoKey,JSON.stringify(state));app.innerHTML=shell(diceDemoContent(state),"High Five");finish();
     bindDemoChrome(()=>{localStorage.removeItem(diceDemoKey);demo();toast("Sample game reset.");});
     document.querySelectorAll<HTMLButtonElement>("[data-dice-hold]").forEach(button=>button.onclick=()=>{const next=readSample(diceDemoKey,initialDiceDemo);const die=Number(button.dataset.diceHold);next.held[die]=!next.held[die];localStorage.setItem(diceDemoKey,JSON.stringify(next));demo();document.querySelector<HTMLElement>(`[data-dice-hold=\"${die}\"]`)?.focus();});
     document.querySelector("#roll-sample-dice")?.addEventListener("click",()=>{const next=readSample(diceDemoKey,initialDiceDemo);const roll=[6,3,3,5,2];next.dice=next.dice.map((value,index)=>next.held[index]?value:roll[index]);next.rollsLeft-=1;localStorage.setItem(diceDemoKey,JSON.stringify(next));demo();document.querySelector<HTMLElement>("#roll-sample-dice")?.focus();});
     document.querySelector("#score-sample-threes")?.addEventListener("click",()=>{const next=readSample(diceDemoKey,initialDiceDemo);next.score=next.dice.filter(value=>value===3).length*3;localStorage.setItem(diceDemoKey,JSON.stringify(next));demo();document.querySelector<HTMLElement>("#sample-dice-result")?.focus();});
     return;
   }
-  const d=readDemo(); localStorage.setItem(demoKey,JSON.stringify(d)); app.innerHTML=shell(demoContent(d),true); finish();
+  const d=readDemo(); localStorage.setItem(demoKey,JSON.stringify(d)); app.innerHTML=shell(demoContent(d),"Make a Square"); finish();
   bindDemoChrome(()=>{localStorage.removeItem(demoKey);demo();toast("Sample game reset.");});
   document.querySelector("#create-demo-room")!.addEventListener("click",async()=>{try{const data=await demoRequest("/api/demo/rooms",{method:"POST"});localStorage.setItem(demoSeatKey(data.room.id),data.player_token);history.pushState({},"",`/demo/${data.room.id}`);route(true);}catch(error){toast((error as Error).message,true);}});
   document.querySelectorAll<HTMLButtonElement>("[data-demo-line]").forEach(b=>b.onclick=()=>{const state=readDemo();dotsMove(state,Number(b.dataset.demoLine));localStorage.setItem(demoKey,JSON.stringify(state));demo();document.querySelector<HTMLElement>(".turn-card")?.focus();});
@@ -146,18 +150,18 @@ function demo() {
 
 async function sharedDemo(id:string, finalise=false) {
   stop(); meta("Demo — Kitchen Table", "Try a two-player sample game that stays in demo storage.", "/demo");
-  app.innerHTML=shell(`<section class="room-loading"><div class="spinner"></div><h1>Opening sample room</h1><p>The sample board should be ready in a moment.</p></section>`,true); finish();
+  app.innerHTML=shell(`<section class="room-loading"><div class="spinner"></div><h1>Opening sample room</h1><p>The sample board should be ready in a moment.</p></section>`,"Make a Square"); finish();
   try {
     let token=localStorage.getItem(demoSeatKey(id));
     if(new URLSearchParams(location.search).get("join")==="1") { const joined=await demoRequest(`/api/demo/rooms/${id}/join`,{method:"POST"});token=String(joined.player_token);localStorage.setItem(demoSeatKey(id),token);history.replaceState({},"",`/demo/${id}`); }
     const room=await demoRequest(`/api/demo/rooms/${id}${token?`?token=${encodeURIComponent(token)}`:""}`) as Demo;
     renderSharedDemo(id,room,token,finalise);
   } catch(error) {
-    app.innerHTML=shell(`<section class="error-state"><p class="kicker">Sample room ended</p><h1>Make a new sample room</h1><p>${esc((error as Error).message)}</p><a class="primary button" href="/demo" data-link>Open the sample game</a></section>`,true);finish();if(finalise)focusRoute();
+    app.innerHTML=shell(`<section class="error-state"><p class="kicker">Sample room ended</p><h1>Make a new sample room</h1><p>${esc((error as Error).message)}</p><a class="primary button" href="/demo" data-link>Open the sample game</a></section>`,"Make a Square");finish();if(finalise)focusRoute();
   }
 }
 function renderSharedDemo(id:string,d:Demo,token:string|null,finalise=false) {
-  app.innerHTML=shell(demoContent(d,id),true); finish(); if(finalise)focusRoute();
+  app.innerHTML=shell(demoContent(d,id),"Make a Square"); finish(); if(finalise)focusRoute();
   document.querySelector("#reset-demo")!.addEventListener("click",async()=>{await demoRequest(`/api/demo/rooms/${id}/reset`,{method:"POST"});await sharedDemo(id);toast("Sample game reset.");});
   document.querySelector("#start-real")!.addEventListener("click",clearDemoStorage);
   document.querySelector("#copy-demo-link")!.addEventListener("click",async()=>{await navigator.clipboard.writeText(`${location.origin}/demo/${id}?join=1`);toast("Ravi’s sample link copied.");});

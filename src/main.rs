@@ -78,6 +78,9 @@ async fn main() {
     });
     let state = api::AppState {
         db,
+        // Blob access is disabled unless an operator explicitly supplies the
+        // full opt-in configuration. The factory deployment supplies only
+        // PORT, so SQLite on its mounted /data volume is authoritative.
         blob: api::blob_store_from_env(),
         build_sha: std::env::var("BUILD_SHA").unwrap_or_else(|_| "development".into()),
         write_lock: Arc::new(Mutex::new(())),
@@ -94,18 +97,7 @@ async fn main() {
     } else {
         "generated default"
     };
-    let blob_source = if state.blob.is_some() {
-        if std::env::var_os("AZURE_STORAGE_ACCOUNT").is_some()
-            || std::env::var_os("AZURE_STORAGE_CONTAINER").is_some()
-        {
-            "supplied"
-        } else {
-            "managed identity default"
-        }
-    } else {
-        "local SQLite fallback"
-    };
-    tracing::info!(%addr, database = database_source, blob = blob_source, "Kitchen Table listening");
+    tracing::info!(%addr, database = database_source, storage = "SQLite", "Kitchen Table listening");
     let app = app_router(state, "frontend/dist");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)

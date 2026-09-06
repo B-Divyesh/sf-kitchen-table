@@ -78,6 +78,15 @@ test("shared demo settles with focus and an announcement on both board and recov
   await expect(page.locator("#route-status")).toContainText("Make a new sample room");
 });
 
+test("sample banner names the game shown on every demo route", async ({ page }) => {
+  for (const path of ["/demo", "/demo?game=race", "/demo?game=dice"]) {
+    await page.goto(path);
+    const game = (await page.locator("main h1").textContent())?.trim();
+    expect(game).toBeTruthy();
+    await expect(page.locator(".demo-banner span")).toHaveText(`Alex and Ravi are playing ${game}.`);
+  }
+});
+
 test("routes expose unique metadata and a useful HTTP 404", async ({ page, request }) => {
   for (const [path, title] of [["/", "Kitchen Table — family games on phones"], ["/demo", "Demo — Kitchen Table"], ["/privacy", "Privacy — Kitchen Table"], ["/terms", "Terms — Kitchen Table"]]) {
     await page.goto(path);

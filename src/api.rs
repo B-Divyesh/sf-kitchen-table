@@ -54,10 +54,8 @@ pub struct DemoQuery {
     token: Option<String>,
 }
 
-/// A private Azure Blob copy makes room state survive Container App restarts.
-/// The app uses its assigned managed identity; no storage key ships in the
-/// image or browser. SQLite remains a fast local cache while one replica is
-/// active, and this is the durable source of truth between replicas.
+/// Legacy optional Blob adapter. The shipped service does not initialize it:
+/// product state stays in SQLite on the fleet-mounted `/data` volume.
 #[derive(Clone)]
 pub struct BlobStore {
     account: String,
@@ -78,21 +76,11 @@ struct VersionedDemoRoom {
 }
 
 pub fn blob_store_from_env() -> Option<BlobStore> {
-    // A Docker image remains useful on a laptop with no Azure metadata
-    // endpoint: it falls back to the local SQLite store there. Container Apps
-    // injects IDENTITY_ENDPOINT for its assigned identity. The factory's
-    // Kitchen Table container is known by that identity, so it must not also
-    // depend on non-PORT app settings to find its isolated room container.
-    // Explicit values remain available for local Azure integration checks.
-    if std::env::var_os("IDENTITY_ENDPOINT").is_none()
-        && std::env::var_os("AZURE_ENABLE_BLOB").is_none()
-    {
+    if std::env::var("AZURE_ENABLE_BLOB").as_deref() != Ok("1") {
         return None;
     }
-    let account = std::env::var("AZURE_STORAGE_ACCOUNT")
-        .unwrap_or_else(|_| "sociobotblob".into());
-    let container = std::env::var("AZURE_STORAGE_CONTAINER")
-        .unwrap_or_else(|_| "kitchen-table-rooms".into());
+    let account = std::env::var("AZURE_STORAGE_ACCOUNT").ok()?;
+    let container = std::env::var("AZURE_STORAGE_CONTAINER").ok()?;
     Some(BlobStore {
         account,
         container,

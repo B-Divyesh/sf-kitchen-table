@@ -197,7 +197,17 @@ test("@claim:server-health-and-limits returns a build identity and rejects a bur
   expect(health.ok()).toBeTruthy();
   const status = await health.json();
   expect(status.status).toBe("ok");
-  expect(typeof status.build_sha).toBe("string");
+  const localExpected = "0123456789abcdef0123456789abcdef01234567";
+  const forbidden = ["", "local", "dev", "development", "unknown"];
+  if (process.env.PLAYWRIGHT_BASE_URL) {
+    expect(status.build_sha).toMatch(/^[0-9a-f]{40}$/);
+  } else {
+    expect(status.build_sha).toBe(localExpected);
+  }
+  expect(forbidden).not.toContain(status.build_sha.toLowerCase());
+  const buildLabel = page.locator("footer .build");
+  await expect(buildLabel).toHaveAttribute("data-build-sha", status.build_sha);
+  await expect(buildLabel).toHaveText(`Build ${status.build_sha.slice(0, 7)}`);
   const responses = await page.evaluate(async () => Promise.all(
     Array.from({ length: 41 }, () => fetch("/privacy", { headers: { "x-forwarded-for": "198.51.100.77" } }).then(async response => ({ status: response.status, retryAfter: response.headers.get("retry-after") }))),
   ));

@@ -1,4 +1,10 @@
+ARG BUILD_SHA=dev
+ARG GIT_SHA=
+ARG SOURCE_COMMIT=
+
 FROM node:22-alpine AS web
+ARG BUILD_SHA
+ENV BUILD_SHA=$BUILD_SHA
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -6,7 +12,7 @@ COPY index.html vite.config.ts tsconfig.json ./
 COPY frontend ./frontend
 RUN npm run build
 
-FROM rust:1.88-alpine AS server
+FROM rust:1-alpine AS server
 RUN apk add --no-cache musl-dev
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
@@ -23,7 +29,7 @@ RUN mkdir -p /data && chown -R table:table /app /data
 USER table
 # The factory supplies all three identities from the source tarball (which has
 # no .git directory). BUILD_SHA is what the health endpoint exposes.
-ARG BUILD_SHA=dev
+ARG BUILD_SHA
 ARG GIT_SHA=
 ARG SOURCE_COMMIT=
 ENV BUILD_SHA=$BUILD_SHA

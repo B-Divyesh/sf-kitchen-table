@@ -43,7 +43,7 @@ frontend build, and the browser claim suite. The claim registry is
 The container serves the frontend and API together on PORT (default 8080). It
 uses `/data` when no database location is supplied.
 
-    docker build --build-arg BUILD_SHA=local -t kitchen-table .
+    docker build --build-arg BUILD_SHA="$(git rev-parse HEAD)" -t kitchen-table .
     docker run --rm -p 8080:8080 -v kitchen-table-data:/data kitchen-table
 
 `/health` returns the build SHA. The server rate-limits every route other than
