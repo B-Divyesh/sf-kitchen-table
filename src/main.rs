@@ -36,14 +36,33 @@ async fn main() {
         )
         .init();
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:///data/kitchen-table.db?mode=rwc".into());
+        .unwrap_or_else(|_| "sqlite:///data/kitchen-table-v2.db?mode=rwc".into());
     api::install_db_drivers();
     let db = AnyPoolOptions::new()
-        .max_connections(8)
+        // One connection matches the one-replica SQLite deployment and keeps
+        // schema setup from competing with another pooled file handle.
+        .max_connections(1)
+        .after_connect(|connection, _| {
+            Box::pin(async move {
+                sqlx::query("PRAGMA busy_timeout = 30000")
+                    .execute(&mut *connection)
+                    .await?;
+                Ok(())
+            })
+        })
         .connect(&database_url)
         .await
         .expect("connect database");
-    sqlx::migrate!().run(&db).await.expect("migrate database");
+    for attempt in 1..=6 {
+        match sqlx::migrate!().run(&db).await {
+            Ok(()) => break,
+            Err(error) if attempt < 6 => {
+                tracing::warn!(%error, attempt, "database migration busy; retrying");
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            }
+            Err(error) => panic!("migrate database after retries: {error}"),
+        }
+    }
     sqlx::query("DELETE FROM rooms WHERE updated_at < $1")
         .bind(api::now_seconds() - 7_776_000)
         .execute(&db)
