@@ -16,6 +16,9 @@ The deployed implementation is
 `873861a05038a9c56462cde54e98e67dffc597a1`; `/health` and the visible footer
 agree on that exact value. The deployment image is
 `sociobotregistry.azurecr.io/sf-kitchen-table@sha256:05f545bc0a58730f86b36c502bc9202be4e52b1c5ff7882321d8a7af14a1d2ec`.
+The verification documentation record is
+`7e45d472106422510149f72d363118d6832c3c8b`; it follows the deployed
+implementation and contains no runtime product change.
 
 The container deployment preserved its durable `sf-kitchen-table-data` mount
 at `/data`, existing environment/probes, and one-replica SQLite limit. It

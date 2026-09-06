@@ -4,7 +4,8 @@
 
 **PASS.** Review 6 finding F-6-1 is closed in implementation commit
 `873861a05038a9c56462cde54e98e67dffc597a1`, which is the deployed `/health`
-identity.
+identity. The verification documentation record is
+`7e45d472106422510149f72d363118d6832c3c8b` and has no runtime product change.
 
 ## Fix
 
