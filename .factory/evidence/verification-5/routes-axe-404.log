@@ -1,0 +1,82 @@
+{
+  "scans": [
+    {
+      "path": "/",
+      "status": 200,
+      "title": "Kitchen Table — family games on phones",
+      "h1": 1,
+      "h1Text": "Play family games on separate phones",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/demo",
+      "status": 200,
+      "title": "Demo — Kitchen Table",
+      "h1": 1,
+      "h1Text": "Make a Square",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/demo?game=race",
+      "status": 200,
+      "title": "Demo — Kitchen Table",
+      "h1": 1,
+      "h1Text": "Lantern Race",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/demo?game=dice",
+      "status": 200,
+      "title": "Demo — Kitchen Table",
+      "h1": 1,
+      "h1Text": "High Five",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "title": "Privacy — Kitchen Table",
+      "h1": 1,
+      "h1Text": "Privacy at Kitchen Table",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/terms",
+      "status": 200,
+      "title": "Terms — Kitchen Table",
+      "h1": 1,
+      "h1Text": "Terms for Kitchen Table",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    },
+    {
+      "path": "/not-a-real-route",
+      "status": 404,
+      "title": "Page not found — Kitchen Table",
+      "h1": 1,
+      "h1Text": "Page not found",
+      "main": 1,
+      "violations": [],
+      "errors": []
+    }
+  ],
+  "choose": {
+    "url": "https://kitchen-table.sociobot.in/#games",
+    "visible": true
+  },
+  "join": {
+    "url": "https://kitchen-table.sociobot.in/?join=1",
+    "focused": true
+  }
+}

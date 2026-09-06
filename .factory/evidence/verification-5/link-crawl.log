@@ -1,0 +1,57 @@
+[
+  {
+    "href": "https://kitchen-table.sociobot.in/",
+    "text": "Skip to the game",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/",
+    "text": "Kitchen Table",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/demo",
+    "text": "Demo",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/",
+    "text": "Choose a game",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/privacy",
+    "text": "Privacy",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/terms",
+    "text": "Terms",
+    "status": 200
+  },
+  {
+    "href": "https://hello-factory.sociobot.in/",
+    "text": "Built by Param Factory (external site)",
+    "status": "external-not-fetched"
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/demo?game=race",
+    "text": "Try Lantern Race sample",
+    "status": 200
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/demo?game=dice",
+    "text": "Try High Five sample",
+    "status": 200
+  },
+  {
+    "href": "mailto:privacy@sociobot.in",
+    "text": "privacy@sociobot.in",
+    "status": "mailto"
+  },
+  {
+    "href": "https://kitchen-table.sociobot.in/?join=1",
+    "text": "Join a room",
+    "status": 200
+  }
+]

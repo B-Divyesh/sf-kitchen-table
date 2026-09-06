@@ -1,0 +1,24 @@
+{
+  "skipBox": {
+    "x": 8,
+    "y": 8,
+    "width": 151,
+    "height": 44
+  },
+  "skipFocused": true,
+  "focusStyle": {
+    "outline": "rgb(242, 184, 75) solid 3px",
+    "outlineColor": "rgb(242, 184, 75)"
+  },
+  "mainFocused": true,
+  "privacyFocus": true,
+  "privacyTitle": "Privacy — Kitchen Table",
+  "backFocus": false,
+  "announcement": "Kitchen Table — family games on phones. Play family games on separate phones",
+  "resizeOverflow": 0,
+  "motion": {
+    "scrollBehavior": "auto",
+    "animations": 1
+  },
+  "errors": []
+}

@@ -1,0 +1,24 @@
+{
+  "label": "Demo — sample data, nothing is saved",
+  "gameLabel": "Alex and Ravi are playing Make a Square.",
+  "players": [
+    "Alex",
+    "Ravi"
+  ],
+  "before": 3,
+  "changed": 2,
+  "reset": 3,
+  "keysDuring": [
+    "demo:kitchen-table:make-a-square",
+    "kt:verification5-sentinel"
+  ],
+  "keysAfter": {
+    "kt:verification5-sentinel": "unchanged"
+  },
+  "productionRequests": [],
+  "origins": [
+    "https://kitchen-table.sociobot.in"
+  ],
+  "cookies": 0,
+  "errors": []
+}

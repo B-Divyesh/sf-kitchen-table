@@ -1,0 +1,32 @@
+[
+  {
+    "game": "race",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 10,
+    "overflow": 0
+  },
+  {
+    "game": "dots",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 33,
+    "overflow": 0
+  },
+  {
+    "game": "dice",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 10,
+    "overflow": 0
+  }
+]

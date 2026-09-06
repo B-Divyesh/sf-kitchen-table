@@ -1,0 +1,75 @@
+
+> kitchen-table@0.1.0 test
+> cargo test && vitest run && npm run build && playwright test && npm run test:provenance
+
+   Compiling kitchen-table v0.1.0 (/work/repo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.74s
+     Running unittests src/main.rs (target/debug/deps/kitchen_table-ad206ddccb4c7f41)
+
+running 15 tests
+test api::tests::demo_rooms_use_an_isolated_store_and_public_views_omit_tokens ... ok
+test api::tests::health_reports_the_configured_build_sha ... ok
+test api::tests::nickname_validation ... ok
+test api::tests::room_lifecycle_routes_are_authoritative ... ok
+test api::tests::a_room_survives_a_process_replacement_when_database_storage_is_persistent ... ok
+test api::tests::separate_replicas_share_a_room_and_never_turn_a_fresh_link_into_a_404 ... ok
+test game::tests::dice_categories_score ... ok
+test game::tests::dice_score_ends_the_turn_and_clears_the_tray ... ok
+test game::tests::dots_box_keeps_turn ... ok
+test game::tests::race_requires_six_and_keeps_the_bonus_turn ... ok
+test tests::cache_policy_is_immutable_only_for_fingerprinted_assets ... ok
+test tests::direct_spa_routes_return_200_and_unknown_paths_do_not ... ok
+test tests::endpoints_rate_limit_by_forwarded_client_and_include_retry_after ... ok
+test api::tests::separate_replicas_share_an_isolated_demo_room_and_keep_it_out_of_rooms ... ok
+test tests::malformed_game_json_has_a_product_error_not_an_axum_rejection ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+
+ RUN  v3.2.7 /work/repo
+
+ ✓ frontend/src/main.test.ts (3 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  07:27:28
+   Duration  517ms (transform 64ms, setup 0ms, collect 59ms, tests 3ms, environment 0ms, prepare 81ms)
+
+
+> kitchen-table@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 7 modules transformed.
+rendering chunks...
+computing gzip size...
+frontend/dist/index.html                                                     1.67 kB │ gzip: 0.58 kB
+frontend/dist/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2  17.21 kB
+frontend/dist/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2  17.52 kB
+frontend/dist/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2              36.62 kB
+frontend/dist/assets/index-DtAt47jc.css                                     20.38 kB │ gzip: 5.48 kB
+frontend/dist/assets/index-DoM89Io3.js                                      29.74 kB │ gzip: 9.83 kB
+✓ built in 217ms
+[WebServer] (node:6928) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer]     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s
+[WebServer]      Running `target/debug/kitchen-table`
+Artwork provenance claim passed
+
+Running 25 tests using 2 workers
+(node:6956) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6955) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6955) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6956) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+·························
+  25 passed (19.9s)
+
+> kitchen-table@0.1.0 test:provenance
+> node tests/provenance.test.mjs
+
+Artwork provenance claim passed

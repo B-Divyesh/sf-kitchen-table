@@ -1,0 +1,16 @@
+
+> kitchen-table@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 7 modules transformed.
+rendering chunks...
+computing gzip size...
+frontend/dist/index.html                                                     1.67 kB │ gzip: 0.58 kB
+frontend/dist/assets/atkinson-hyperlegible-latin-400-normal-BrHNak5F.woff2  17.21 kB
+frontend/dist/assets/atkinson-hyperlegible-latin-700-normal-GZI4o3u0.woff2  17.52 kB
+frontend/dist/assets/fraunces-latin-wght-normal-ukD16Tqj.woff2              36.62 kB
+frontend/dist/assets/index-DtAt47jc.css                                     20.38 kB │ gzip: 5.48 kB
+frontend/dist/assets/index-DoM89Io3.js                                      29.74 kB │ gzip: 9.83 kB
+✓ built in 221ms

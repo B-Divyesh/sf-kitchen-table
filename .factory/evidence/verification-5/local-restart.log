@@ -1,0 +1,22 @@
+{
+  "startEnvironment": [
+    "PORT"
+  ],
+  "firstHealth": {
+    "build_sha": "development",
+    "status": "ok"
+  },
+  "secondHealth": {
+    "build_sha": "development",
+    "status": "ok"
+  },
+  "revisionBefore": 3,
+  "revisionAfter": 3,
+  "statusAfter": "playing",
+  "firstLineOwner": 0,
+  "publicContainsToken": false,
+  "databaseFiles": [
+    "kitchen-table.db"
+  ],
+  "startupSecretTerms": 0
+}

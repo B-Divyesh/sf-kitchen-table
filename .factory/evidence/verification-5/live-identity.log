@@ -1,0 +1,14 @@
+{
+  "footer": {
+    "text": "Build b492efe",
+    "sha": "b492efedf3dbb59259044de025a23bcaa67869db"
+  },
+  "health": {
+    "status": 200,
+    "body": {
+      "build_sha": "b492efedf3dbb59259044de025a23bcaa67869db",
+      "status": "ok"
+    }
+  },
+  "exact": true
+}

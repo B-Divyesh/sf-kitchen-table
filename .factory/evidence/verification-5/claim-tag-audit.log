@@ -1,0 +1,25 @@
+{
+  "registeredCount": 17,
+  "tagCounts": {
+    "artwork-provenance": 1,
+    "deletion-contact": 1,
+    "demo-in-progress": 1,
+    "demo-isolated": 1,
+    "demo-offline": 1,
+    "demo-reset": 1,
+    "dice-gameplay": 1,
+    "dots-gameplay": 1,
+    "no-account": 1,
+    "no-ads": 1,
+    "no-strangers-or-payments": 1,
+    "race-gameplay": 1,
+    "room-link-resume": 1,
+    "seat-token-private": 1,
+    "server-health-and-limits": 1,
+    "storage-disclosure": 1,
+    "three-games": 1
+  },
+  "missing": [],
+  "duplicates": [],
+  "orphans": []
+}

@@ -1,0 +1,79 @@
+{
+  "identity": {
+    "status": 200,
+    "build_sha": "b492efedf3dbb59259044de025a23bcaa67869db",
+    "exactMatch": false
+  },
+  "invalidGame": {
+    "status": 400,
+    "retryAfter": null,
+    "body": {
+      "error": "The request body was not valid. Check the game and try again."
+    }
+  },
+  "malformed": {
+    "status": 400,
+    "retryAfter": null,
+    "body": {
+      "error": "The request body was not valid. Check the game and try again."
+    }
+  },
+  "nickname21": {
+    "status": 400,
+    "retryAfter": null,
+    "body": {
+      "error": "Nickname must be 1–20 characters."
+    }
+  },
+  "missingRoom": {
+    "status": 404,
+    "retryAfter": null,
+    "body": {
+      "error": "That room was not found. Check the six-letter code."
+    }
+  },
+  "normal": {
+    "createStatus": 200,
+    "codeLength": 6,
+    "oneSeatStart": {
+      "status": 400,
+      "error": "Invite 1 more player before starting."
+    },
+    "duplicate": {
+      "status": 400,
+      "error": "Someone at this table already uses that nickname."
+    },
+    "joinStatus": 200,
+    "startStatus": 200,
+    "wrongTurn": {
+      "status": 400,
+      "error": "It is not your turn yet."
+    },
+    "actions": 24,
+    "finalStatus": "finished",
+    "revision": 26,
+    "scores": [
+      3,
+      6
+    ],
+    "winner": 1,
+    "publicStatus": 200,
+    "publicContainsToken": false
+  },
+  "isolation": {
+    "demoCreateStatus": 200,
+    "demoCodeLength": 6,
+    "demoViaProductionStatus": 404,
+    "productionViaDemoStatus": 404
+  },
+  "rateLimit": {
+    "counts": {
+      "200": 20,
+      "429": 25
+    },
+    "retryAfterValues": [
+      "1"
+    ],
+    "healthAfter": 200
+  }
+}

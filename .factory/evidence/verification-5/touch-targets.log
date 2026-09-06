@@ -1,0 +1,98 @@
+[
+  {
+    "path": "/",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 14
+  },
+  {
+    "path": "/demo",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 16
+  },
+  {
+    "path": "/demo?game=race",
+    "failures": [
+      {
+        "tag": "BUTTON",
+        "name": "Move Alex’s first pawn",
+        "width": 42,
+        "height": 42
+      },
+      {
+        "tag": "BUTTON",
+        "name": "Move Alex’s second pawn",
+        "width": 42,
+        "height": 42
+      }
+    ],
+    "minimums": {
+      "width": 42,
+      "height": 42
+    },
+    "count": 14
+  },
+  {
+    "path": "/demo?game=dice",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 19
+  },
+  {
+    "path": "/privacy",
+    "failures": [
+      {
+        "tag": "A",
+        "name": "← Back to Kitchen Table",
+        "width": 169.4,
+        "height": 24
+      },
+      {
+        "tag": "A",
+        "name": "privacy@sociobot.in",
+        "width": 137,
+        "height": 20
+      }
+    ],
+    "minimums": {
+      "width": 44,
+      "height": 20
+    },
+    "count": 10
+  },
+  {
+    "path": "/terms",
+    "failures": [
+      {
+        "tag": "A",
+        "name": "← Back to Kitchen Table",
+        "width": 169.4,
+        "height": 24
+      }
+    ],
+    "minimums": {
+      "width": 44,
+      "height": 24
+    },
+    "count": 9
+  },
+  {
+    "path": "/not-a-real-route",
+    "failures": [],
+    "minimums": {
+      "width": 44,
+      "height": 44
+    },
+    "count": 10
+  }
+]
