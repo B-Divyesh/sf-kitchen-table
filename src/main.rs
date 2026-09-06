@@ -36,7 +36,9 @@ async fn main() {
         )
         .init();
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:///data/kitchen-table-v2.db?mode=rwc".into());
+        // Azure Files does not provide SQLite's default POSIX byte-range lock
+        // semantics. The dot-file VFS keeps locking on the mounted filesystem.
+        .unwrap_or_else(|_| "sqlite:///data/kitchen-table-v3.db?mode=rwc&vfs=unix-dotfile".into());
     api::install_db_drivers();
     let db = AnyPoolOptions::new()
         // One connection matches the one-replica SQLite deployment and keeps
