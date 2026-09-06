@@ -1,87 +1,63 @@
-# Kitchen Table — repair 5 handoff
+# Kitchen Table — verification 5 handoff
 
 ## Result
 
-**PASS.** Kitchen Table lets couples and families play three shared family
-games on separate phones without an account or ads. The first action is
-**Try it with sample data**, which opens a populated two-player game.
+**FAIL.** Independent verification found **1 minor accessibility finding** and
+**0 untested public claims**. Product code was not changed.
 
-Review 6's only finding is fixed. The designed unknown-route page now uses the
-direct heading **“Page not found”** and direct description. It retains the
-working **Choose a game** and **Join a room** recovery actions.
+The product works end to end: the sample is isolated and resettable; all three
+games work; two phones can create, join, move, and reload; a full game reaches
+completion; offline sample play works; backend limits, namespace isolation,
+and restart persistence pass. The deliberate 404 now says **Page not found**
+and both recovery actions work.
 
-## Source identity and deployment
+## Open finding
 
-The deployed implementation is
-`873861a05038a9c56462cde54e98e67dffc597a1`; `/health` and the visible footer
-agree on that exact value. The deployment image is
-`sociobotregistry.azurecr.io/sf-kitchen-table@sha256:05f545bc0a58730f86b36c502bc9202be4e52b1c5ff7882321d8a7af14a1d2ec`.
-The verification documentation record is
-`7e45d472106422510149f72d363118d6832c3c8b`; it follows the deployed
-implementation and contains no runtime product change.
+Five phone touch targets are below the required 44 × 44 px baseline:
 
-The container deployment preserved its durable `sf-kitchen-table-data` mount
-at `/data`, existing environment/probes, and one-replica SQLite limit. It
-requires only `PORT`; local no-environment runs use a database alongside the
-binary when `/data` is absent.
+- both Lantern Race sample pawn buttons are 42 × 42 px;
+- the Privacy back link is 24 px high;
+- the Privacy deletion email link is 20 px high;
+- the Terms back link is 24 px high.
 
-## Verification
+Give each a minimum 44 px hit area and add a browser geometry test covering all
+demo and legal routes. Full evidence and earlier-finding dispositions are in
+`.factory/verification-5.md`.
 
-From the documented clean setup, these all passed:
+## Source identity
+
+- Implementation candidate: `873861a05038a9c56462cde54e98e67dffc597a1`
+- Documentation checkout and live identity:
+  `b492efedf3dbb59259044de025a23bcaa67869db`
+- Live URL: <https://kitchen-table.sociobot.in>
+
+The SHA difference is report-only: commits after the implementation candidate
+change only `.factory/` documentation and evidence. Live `/health` and the
+rendered footer agree exactly on `b492efe…`.
+
+## Verification completed
+
+All 17 declared claim commands passed separately. These gates also passed:
 
 ```sh
-npm ci
 npm test
 npm run build
 cargo clippy --all-targets --all-features -- -D warnings
 cargo build --release
+PLAYWRIGHT_BASE_URL=https://kitchen-table.sociobot.in npx playwright test
 ```
 
-The full suite passed 15 Rust tests, 3 Vitest tests, 25 Playwright tests, and
-the artwork provenance audit. All 17 commands in `.factory/claims.json` also
-passed separately.
+The aggregate suite passed 15 Rust tests, 3 Vitest tests, 25 local Playwright
+tests, provenance, and 25/25 live Playwright tests. Axe found zero violations
+on the landing page, demos, active games, legal pages, and 404. Lighthouse
+scored 99 performance and 100 accessibility, best practices, and SEO (LCP
+1.65 s, CLS 0.038, TBT 30 ms).
 
-Local URL verification found no console errors, one title/h1/main structure,
-`lang=en`, complete alt text, and labelled buttons. The seven-screen Axe scan
-had zero serious or critical issues.
+Evidence is under `.factory/evidence/verification-5/`. The release binary also
+started with only `PORT`, preserved a moved room across a graceful restart,
+and logged no secret-like value.
 
-Live HTTPS checks passed for fresh desktop and phone first screens, the
-populated demo, sample label/reset/exit isolation, all three sample games,
-two-phone sample resume, privacy boundaries, offline sample behavior, keyboard
-and focus behavior, reduced motion, rate limiting, and build identity. The
-full live browser suite passed 25/25. The 404 has HTTP status 404, a direct
-title and h1, no prior mood copy, zero serious/critical Axe issues, and both
-recovery actions work.
+## Next step
 
-A fresh live mobile Lighthouse run scored 99 performance and 100 for
-accessibility, best practices, and SEO. LCP was 1.68 seconds, CLS was 0.038,
-and total blocking time was 0 ms.
-
-`/work/.evidence/catalog-description.txt` is an exact copy of the 74-byte,
-verb-first catalog description.
-
-## Documentation and history
-
-`.factory/repair-5.md` records the focused change and evidence. Review 6
-already replayed all earlier review, verification, polish, and repair findings;
-this repair reran the full local and live suites and reopened none of them.
-
-## Run locally
-
-```sh
-npm ci
-npm test
-npm run build
-cargo run
-```
-
-Open `http://127.0.0.1:8080`, or `/demo` for the isolated sample.
-
-## Known gaps
-
-There are no known product gaps in the reviewed scope. The deliberate HTTP 404
-may be shown by browsers as an expected failed-document network request; the
-complete recovery page is intentional and remains usable.
-
-No AI feature is used because it would not improve this turn-based family-game
-job. There is no paid offer or billing dependency.
+Repair only F-V5-1, rerun its complete phone target scan plus the normal claim
+and build gates, deploy, and independently verify before declaring PASS.
